@@ -1,123 +1,173 @@
-#ifndef QMI8658A_H
-#define QMI8658A_H
 
-#include <Arduino.h>
-#include <Wire.h>
-#include <SPI.h>
+#ifndef QMI8658A_h
+#define QMI8658A_h
 
-// 设备识别
-#define QMI8658A_WHO_AM_I           0x00
-#define QMI8658A_REVISION_ID        0x01
-#define QMI8658A_DEVICE_ID          0x05
-#define QMI8658A_REVISION_VALUE     0x7C
+#include "Arduino.h"
 
-// 核心寄存器
-#define QMI8658A_CTRL1              0x02
-#define QMI8658A_CTRL2              0x03  // 加速度计配置
-#define QMI8658A_CTRL3              0x04  // 陀螺仪配置
-#define QMI8658A_CTRL7              0x08  // 传感器使能
-#define QMI8658A_CTRL9              0x0A  // 命令寄存器
-#define QMI8658A_RESET              0x60
+#define QMI8658_WHO_AM_I 0x00 // devide identifier
+#define QMI8658_REVISION_ID 0x01
+#define QMI8658_CTRL1  0x02 // SPI interface and sensor enable
+#define QMI8658_CTRL2  0x03 // Accelerometer settings
+#define QMI8658_CTRL3  0x04 // Gyro settings
+#define QMI8658_CTRL4  0x05 // reserved (we don't use this)
+#define QMI8658_CTRL5  0x06 // Low-pass filter settings
+#define QMI8658_CTRL6  0x07 // AttitudeEngine settings (we don't use these)
+#define QMI8658_CTRL7  0x08 // Sensor enable
+#define QMI8658_CTRL8  0x09 // Motion detection control (not in current lib version)
+#define QMI8658_CTRL9  0x0A // Host commands (not in current lib version)
 
-// 状态寄存器
-#define QMI8658A_STATUSINT          0x2D
-#define QMI8658A_STATUS0            0x2E
+#define QMI8658_CAL1_L  0x0B  // calibration 1 register, lower bits
+#define QMI8658_CAL1_H  0x0C  // calibration 1 register, higher bits
 
-// 数据寄存器
-#define QMI8658A_AX_L               0x35
-#define QMI8658A_AX_H               0x36
-#define QMI8658A_AY_L               0x37
-#define QMI8658A_AY_H               0x38
-#define QMI8658A_AZ_L               0x39
-#define QMI8658A_AZ_H               0x3A
-#define QMI8658A_GX_L               0x3B
-#define QMI8658A_GX_H               0x3C
-#define QMI8658A_GY_L               0x3D
-#define QMI8658A_GY_H               0x3E
-#define QMI8658A_GZ_L               0x3F
-#define QMI8658A_GZ_H               0x40
-#define QMI8658A_TEMP_L             0x33
-#define QMI8658A_TEMP_H             0x34
+#define QMI8658_CAL2_L  0x0D  // calibration 2 register, lower bits
+#define QMI8658_CAL2_H  0x0E  // calibration 2 register, higher bits
 
-// I2C地址
-#define QMI8658A_I2C_ADDR_SA0_HIGH  0x6A
-#define QMI8658A_I2C_ADDR_SA0_LOW   0x6B
+#define QMI8658_CAL3_L  0x0F  // calibration 3 register, lower bits
+#define QMI8658_CAL3_H  0x10  // calibration 3 register, higher bits
 
-// 加速度计量程
+#define QMI8658_CAL4_L  0x11  // calibration 4 register, lower bits
+#define QMI8658_CAL4_H  0x12  // calibration 4 register, higher bits
+
+#define QMI8658_TEMP_L 0x33 // lower bits of temperature data
+#define QMI8658_TEMP_H 0x34 // upper bits of temperature data
+
+#define QMI8658_STATUSINT 0x2D // status + interrupt register
+
+#define QMI8658_AX_L 0x35 // lower bits of x-axis acceleration
+#define QMI8658_AX_H 0x36 // upper bits of x-axis acceleration
+#define QMI8658_AY_L 0x37 // lower bits of y-axis acceleration
+#define QMI8658_AY_H 0x38 // upper bits of y-axis acceleration
+#define QMI8658_AZ_L 0x39
+#define QMI8658_AZ_H 0x3A
+#define QMI8658_GX_L 0x35 // lower bits of x-axis angular velocity
+#define QMI8658_GX_H 0x36 // upper bits of x-axis angular velocity
+#define QMI8658_GY_L 0x37
+#define QMI8658_GY_H 0x38
+#define QMI8658_GZ_L 0x39
+#define QMI8658_GZ_H 0x3A
+
+#define QMI8658_AODR_MASK 0x0F // bits in acc data rate are 1, rest are 0 (CTRL2)
+#define QMI8658_GODR_MASK 0x0F // bits in gyro data rate are 1, rest are 0 (CTRL3)
+#define QMI8658_ASCALE_MASK 0x70 // bits in acc scale are 1, rest are 0
+#define QMI8658_GSCALE_MASK 0x70 // bits in gyro scale are 1, rest are 0
+#define QMI8658_ALPF_MASK 0x06 // bits in acc low pass filter setting
+#define QMI8658_GLPF_MASK 0x60 // bits in gyro low pass filter setting
+#define QMI8658_ASCALE_OFFSET 4 // offset to acc scale bits
+#define QMI8658_GSCALE_OFFSET 4 // offset to gyro scale bits
+#define QMI8658_ALPF_OFFSET 1 // offset to acc low pass filter bits
+#define QMI8658_GLPF_OFFSET 5 // offset to gyro low pass filter bits
+
+#define QMI8658_COMM_TIMEOUT 50 // communication timeout, in ms
+
+#define QMI8658_SIXTEENBIT_SCALER 1.0f/32768.0f
+
+// delay between refreshes of sensor data in us
+// applies to individual sensor readings while in locking mode
+// has no effect in running mode
+#define QMI8658_REFRESH_DELAY 2000
+
+// control clock gating (necessary to use data locking)
+#define QMI8658_CTRL_CMD_AHB_CLOCK_GATING 0x12
+
+
 typedef enum {
-    QMI8658A_ACC_RANGE_2G = 0x00,
-    QMI8658A_ACC_RANGE_4G = 0x01,
-    QMI8658A_ACC_RANGE_8G = 0x02,
-    QMI8658A_ACC_RANGE_16G = 0x03
-} qmi8658a_acc_range_t;
+    acc_odr_norm_8000 = 0x0,
+    acc_odr_norm_4000,
+    acc_odr_norm_2000,
+    acc_odr_norm_1000,
+    acc_odr_norm_500,
+    acc_odr_norm_250,
+    acc_odr_norm_120,
+    acc_odr_norm_60,
+    acc_odr_norm_30,
+    acc_odr_lp_128 = 0xC,
+    acc_odr_lp_21,
+    acc_odr_lp_11,
+    acc_odr_lp_3,
+} acc_odr_t;
 
-// 陀螺仪量程
 typedef enum {
-    QMI8658A_GYRO_RANGE_16DPS = 0x00,
-    QMI8658A_GYRO_RANGE_32DPS = 0x01,
-    QMI8658A_GYRO_RANGE_64DPS = 0x02,
-    QMI8658A_GYRO_RANGE_128DPS = 0x03,
-    QMI8658A_GYRO_RANGE_256DPS = 0x04,
-    QMI8658A_GYRO_RANGE_512DPS = 0x05,
-    QMI8658A_GYRO_RANGE_1024DPS = 0x06,
-    QMI8658A_GYRO_RANGE_2048DPS = 0x07
-} qmi8658a_gyro_range_t;
+    gyro_odr_norm_8000 = 0x0,
+    gyro_odr_norm_4000,
+    gyro_odr_norm_2000,
+    gyro_odr_norm_1000,
+    gyro_odr_norm_500,
+    gyro_odr_norm_250,
+    gyro_odr_norm_120,
+    gyro_odr_norm_60,
+    gyro_odr_norm_30
+} gyro_odr_t;
 
-// 数据结构
-typedef struct {
-    float x, y, z;
-} qmi8658a_data_t;
+typedef enum {
+    acc_scale_2g = 0x0,
+    acc_scale_4g,
+    acc_scale_8g,
+    acc_scale_16g
+} acc_scale_t;
 
-class QMI8658A {
+typedef enum {
+    gyro_scale_16dps = 0x0,
+    gyro_scale_32dps,
+    gyro_scale_64dps,
+    gyro_scale_128dps,
+    gyro_scale_256dps,
+    gyro_scale_512dps,
+    gyro_scale_1024dps,
+    gyro_scale_2048dps
+} gyro_scale_t;
+
+typedef enum {
+    lpf_2_66 = 0x0, // 2.66% ODR filter
+    lpf_3_63 = 0x2, // 3.63% ODR
+    lpf_5_39 = 0x4, // 5.39% ODR
+    lpf_13_37 = 0x6 // 13.37% ODR
+} lpf_t;
+
+typedef enum {
+    sensor_default,
+    sensor_power_down,
+    sensor_running,
+    sensor_locking
+} sensor_state_t;
+
+class QMI8658A
+{
+private:
+    acc_odr_t acc_odr;
+    gyro_odr_t gyro_odr;
+    acc_scale_t acc_scale;
+    gyro_scale_t gyro_scale;
+    lpf_t acc_lpf;
+    lpf_t gyro_lpf;
+    sensor_state_t sensor_state;
+    byte device_addr;
+    int16_t readings[6];
+    uint32_t reading_timestamp_us; // timestamp in arduino micros() time
+    void QMI8658A_transmit(byte addr, byte data);
+    byte QMI8658A_receive(byte addr);
+    void QMI8658A_CTRL9_Write(byte command);
+    void QMI8658_sensor_update();
+    inline void QMI8658_update_if_needed();
 public:
     QMI8658A();
-    
-    // 初始化
-    bool begin(uint8_t i2c_addr = QMI8658A_I2C_ADDR_SA0_HIGH, TwoWire *wire = &Wire);
-    bool beginSPI(uint8_t cs_pin, SPIClass *spi = &SPI);
-    
-    // 基础功能
-    bool isConnected();
-    void reset();
-    
-    // 配置
-    void enableAccelerometer(bool enable = true);
-    void enableGyroscope(bool enable = true);
-    void enableSyncMode(bool enable = true);
-    void setAccelerometerRange(qmi8658a_acc_range_t range);
-    void setGyroscopeRange(qmi8658a_gyro_range_t range);
-    
-    // 数据读取
-    bool isDataReady();
-    qmi8658a_data_t readAccelerometer();
-    qmi8658a_data_t readGyroscope();
-    float readTemperature();
-    void readAll(qmi8658a_data_t *acc, qmi8658a_data_t *gyro, float *temp = nullptr);
-    
-    // 高级功能
-    void calibrateGyroscope();
-    bool selfTestAccelerometer();
-    bool selfTestGyroscope();
-    
-private:
-    bool _use_i2c;
-    uint8_t _i2c_addr;
-    uint8_t _cs_pin;
-    TwoWire *_wire;
-    SPIClass *_spi;
-    
-    qmi8658a_acc_range_t _acc_range;
-    qmi8658a_gyro_range_t _gyro_range;
-    
-    // 通信函数
-    uint8_t readRegister(uint8_t reg);
-    void writeRegister(uint8_t reg, uint8_t value);
-    void readRegisters(uint8_t reg, uint8_t *buffer, uint8_t length);
-    
-    // 工具函数
-    int16_t combineBytes(uint8_t low, uint8_t high);
-    float convertAcceleration(int16_t raw);
-    float convertGyroscope(int16_t raw);
+    void begin(byte addr);
+    void begin(byte addr, uint32_t speed);
+    void setAccODR(acc_odr_t odr);
+    void setGyroODR(gyro_odr_t odr);
+    void setAccScale(acc_scale_t scale);
+    void setGyroScale(gyro_scale_t scale);
+    void setAccLPF(lpf_t lpf);
+    void setGyroLPF(lpf_t lpf);
+    void setState(sensor_state_t state);
+    void getRawReadings(int16_t* buf);
+    float getAccX();
+    float getAccY();
+    float getAccZ();
+    float getGyroX();
+    float getGyroY();
+    float getGyroZ();
+    ~QMI8658A();
 };
+
 
 #endif

@@ -1,253 +1,478 @@
+#include <Wire.h>
+#include "Arduino.h"
 #include "QMI8658A.h"
 
-QMI8658A::QMI8658A() {
-    _use_i2c = true;
-    _i2c_addr = QMI8658A_I2C_ADDR_SA0_HIGH;
-    _cs_pin = 0;
-    _wire = nullptr;
-    _spi = nullptr;
-    _acc_range = QMI8658A_ACC_RANGE_2G;
-    _gyro_range = QMI8658A_GYRO_RANGE_256DPS;
+/**
+ * put default values in variables.
+ * real initialization of sensor happens in begin().
+ */
+QMI8658A::QMI8658A()
+{
+    this->device_addr = 0x6B; // default for SD0/SA0 low, 0x6A if high
+    this->acc_scale = acc_scale_4g;
+    this->gyro_scale = gyro_scale_1024dps;
+    this->acc_odr = acc_odr_norm_8000;
+    this->gyro_odr = gyro_odr_norm_8000;
+    this->sensor_state = sensor_default;
 }
 
-bool QMI8658A::begin(uint8_t i2c_addr, TwoWire *wire) {
-    _use_i2c = true;
-    _i2c_addr = i2c_addr;
-    _wire = wire;
-    
-    _wire->begin();
-    delay(50);
-    
-    // 检查设备ID
-    if (!isConnected()) {
-        return false;
+/**
+ * Inialize Wire and send default configs
+ * @param addr I2C address of sensor, typically 0x6A or 0x6B
+ */
+void QMI8658A::begin(byte addr)
+{
+    Wire.begin();
+    this->device_addr = addr;
+    setState(sensor_running);
+    setAccScale(this->acc_scale);
+    setAccODR(this->acc_odr);
+    setGyroScale(this->gyro_scale);
+    setGyroODR(this->gyro_odr);
+    setAccLPF(lpf_5_39);
+    setGyroLPF(lpf_5_39);
+}
+
+/**
+ * Inialize Wire and send default configs
+ * @param addr I2C address of sensor, typically 0x6A or 0x6B
+ * @param speed I2C speed, sensor supports up to 400kHz
+ */
+void QMI8658A::begin(byte addr, uint32_t speed)
+{
+    begin(addr);
+    Wire.setClock(speed);
+}
+
+/**
+ * Transmit one byte of data to QMI8658A.
+ * @param addr address of data to be written
+ * @param data the data to be written
+ */
+void QMI8658A::QMI8658A_transmit(byte addr, byte data)
+{
+    Wire.beginTransmission(this->device_addr);
+    Wire.write(addr);
+    Wire.write(data);
+    Wire.endTransmission();
+}
+
+/**
+ * Receive one byte of data from QMI8658A.
+ * @param addr address of data to be read
+ * @return the byte of data that was read
+ */
+byte QMI8658A::QMI8658A_receive(byte addr)
+{
+    Wire.beginTransmission(this->device_addr);
+    unsigned long beforeRequest = millis();
+    Wire.write(addr);
+    Wire.endTransmission(false);
+    Wire.requestFrom(this->device_addr, (uint8_t)1);
+    while (Wire.available() == 0)
+    {
+        if (millis() - beforeRequest > QMI8658_COMM_TIMEOUT)
+            return 0; // may need work, cleanest way I could think of
+                      // to deal with this situation
     }
-    
-    // 软复位
-    reset();
-    delay(15);
-    
-    // 基础配置
-    writeRegister(QMI8658A_CTRL1, 0x40); // 地址自增
-    writeRegister(QMI8658A_CTRL2, 0x04); // 加速度计500Hz, ±2g
-    writeRegister(QMI8658A_CTRL3, 0x04); // 陀螺仪448.4Hz, ±256dps
-    writeRegister(QMI8658A_CTRL7, 0x83); // 使能6轴+同步模式
-    
-    return true;
+    byte retval = Wire.read();
+    Wire.endTransmission();
+    return retval;
 }
 
-bool QMI8658A::beginSPI(uint8_t cs_pin, SPIClass *spi) {
-    _use_i2c = false;
-    _cs_pin = cs_pin;
-    _spi = spi;
-    
-    pinMode(_cs_pin, OUTPUT);
-    digitalWrite(_cs_pin, HIGH);
-    
-    _spi->begin();
-    _spi->setDataMode(SPI_MODE0);
-    _spi->setClockDivider(SPI_CLOCK_DIV16); // 1MHz
-    
-    delay(50);
-    
-    if (!isConnected()) {
-        return false;
+/**
+ * Writes data to CTRL9 (command register) and waits for ACK.
+ * @param command the command to be executed
+ */
+void QMI8658A::QMI8658A_CTRL9_Write(byte command)
+{
+    QMI8658A_transmit(QMI8658_CTRL9, command);
+    while ((QMI8658A_receive(QMI8658_STATUSINT) & 0x80) == 0x00);  // 添加括号
+}
+
+/**
+ * Update readings array while in sensor_locking state.
+ * This guarantees all data are synchronized together.
+ */
+void QMI8658A::QMI8658_sensor_update()
+{
+    if (this->sensor_state == sensor_locking)
+    {    // wait until STATUSINT shows data is ready
+        while(QMI8658A_receive(QMI8658_STATUSINT) & 0x01 == 0)
+            delayMicroseconds(3);
+        
+        // wait a resonable interval for data loading
+        // these are reasonable for when gyro is enabled
+        // if accel only, we need to delay longer
+        if (gyro_odr <= gyro_odr_norm_4000)
+            delayMicroseconds(3);
+        else if (gyro_odr <= gyro_odr_norm_1000)
+            delayMicroseconds(6);
+        else
+            delayMicroseconds(12);
     }
-    
-    reset();
-    delay(15);
-    
-    // SPI模式配置
-    writeRegister(QMI8658A_CTRL1, 0x40);
-    writeRegister(QMI8658A_CTRL2, 0x04);
-    writeRegister(QMI8658A_CTRL3, 0x04);
-    writeRegister(QMI8658A_CTRL7, 0x83);
-    
-    return true;
-}
+    // update timestamp for readings
+    this->reading_timestamp_us = micros();
 
-bool QMI8658A::isConnected() {
-    uint8_t who_am_i = readRegister(QMI8658A_WHO_AM_I);
-    return (who_am_i == QMI8658A_DEVICE_ID);
-}
-
-void QMI8658A::reset() {
-    writeRegister(QMI8658A_RESET, 0xB0);
-}
-
-void QMI8658A::enableAccelerometer(bool enable) {
-    uint8_t ctrl7 = readRegister(QMI8658A_CTRL7);
-    if (enable) {
-        ctrl7 |= 0x01;
-    } else {
-        ctrl7 &= ~0x01;
-    }
-    writeRegister(QMI8658A_CTRL7, ctrl7);
-}
-
-void QMI8658A::enableGyroscope(bool enable) {
-    uint8_t ctrl7 = readRegister(QMI8658A_CTRL7);
-    if (enable) {
-        ctrl7 |= 0x02;
-    } else {
-        ctrl7 &= ~0x02;
-    }
-    writeRegister(QMI8658A_CTRL7, ctrl7);
-}
-
-void QMI8658A::enableSyncMode(bool enable) {
-    uint8_t ctrl7 = readRegister(QMI8658A_CTRL7);
-    if (enable) {
-        ctrl7 |= 0x80;
-    } else {
-        ctrl7 &= ~0x80;
-    }
-    writeRegister(QMI8658A_CTRL7, ctrl7);
-}
-
-void QMI8658A::setAccelerometerRange(qmi8658a_acc_range_t range) {
-    _acc_range = range;
-    uint8_t ctrl2 = readRegister(QMI8658A_CTRL2);
-    ctrl2 = (ctrl2 & 0x8F) | (range << 4);
-    writeRegister(QMI8658A_CTRL2, ctrl2);
-}
-
-void QMI8658A::setGyroscopeRange(qmi8658a_gyro_range_t range) {
-    _gyro_range = range;
-    uint8_t ctrl3 = readRegister(QMI8658A_CTRL3);
-    ctrl3 = (ctrl3 & 0x8F) | (range << 4);
-    writeRegister(QMI8658A_CTRL3, ctrl3);
-}
-
-bool QMI8658A::isDataReady() {
-    uint8_t status = readRegister(QMI8658A_STATUSINT);
-    return (status & 0x01) != 0;
-}
-
-qmi8658a_data_t QMI8658A::readAccelerometer() {
-    uint8_t data[6];
-    readRegisters(QMI8658A_AX_L, data, 6);
-    
-    qmi8658a_data_t result;
-    result.x = convertAcceleration(combineBytes(data[0], data[1]));
-    result.y = convertAcceleration(combineBytes(data[2], data[3]));
-    result.z = convertAcceleration(combineBytes(data[4], data[5]));
-    
-    return result;
-}
-
-qmi8658a_data_t QMI8658A::readGyroscope() {
-    uint8_t data[6];
-    readRegisters(QMI8658A_GX_L, data, 6);
-    
-    qmi8658a_data_t result;
-    result.x = convertGyroscope(combineBytes(data[0], data[1]));
-    result.y = convertGyroscope(combineBytes(data[2], data[3]));
-    result.z = convertGyroscope(combineBytes(data[4], data[5]));
-    
-    return result;
-}
-
-float QMI8658A::readTemperature() {
-    uint8_t data[2];
-    readRegisters(QMI8658A_TEMP_L, data, 2);
-    
-    int16_t raw = combineBytes(data[0], data[1]);
-    return raw / 256.0f; // 根据规格书转换
-}
-
-void QMI8658A::readAll(qmi8658a_data_t *acc, qmi8658a_data_t *gyro, float *temp) {
-    // 同步模式下先读状态寄存器触发锁存
-    readRegister(QMI8658A_STATUSINT);
-    
-    if (acc) *acc = readAccelerometer();
-    if (gyro) *gyro = readGyroscope();
-    if (temp) *temp = readTemperature();
-}
-
-void QMI8658A::calibrateGyroscope() {
-    writeRegister(QMI8658A_CTRL9, 0xA2); // 陀螺仪校准命令
-    delay(500); // 等待校准完成
-}
-
-// 私有函数实现
-uint8_t QMI8658A::readRegister(uint8_t reg) {
-    if (_use_i2c) {
-        _wire->beginTransmission(_i2c_addr);
-        _wire->write(reg);
-        _wire->endTransmission(false);
-        _wire->requestFrom(_i2c_addr, (uint8_t)1);
-        return _wire->read();
-    } else {
-        digitalWrite(_cs_pin, LOW);
-        _spi->transfer(reg | 0x80); // 读取位
-        uint8_t value = _spi->transfer(0x00);
-        digitalWrite(_cs_pin, HIGH);
-        return value;
-    }
-}
-
-void QMI8658A::writeRegister(uint8_t reg, uint8_t value) {
-    if (_use_i2c) {
-        _wire->beginTransmission(_i2c_addr);
-        _wire->write(reg);
-        _wire->write(value);
-        _wire->endTransmission();
-    } else {
-        digitalWrite(_cs_pin, LOW);
-        _spi->transfer(reg & 0x7F); // 写入位
-        _spi->transfer(value);
-        digitalWrite(_cs_pin, HIGH);
-    }
-}
-
-void QMI8658A::readRegisters(uint8_t reg, uint8_t *buffer, uint8_t length) {
-    if (_use_i2c) {
-        _wire->beginTransmission(_i2c_addr);
-        _wire->write(reg);
-        _wire->endTransmission(false);
-        _wire->requestFrom(_i2c_addr, length);
-        for (uint8_t i = 0; i < length; i++) {
-            buffer[i] = _wire->read();
+    // load actual data
+    Wire.beginTransmission(this->device_addr);
+    unsigned long beforeRequest = millis();
+    Wire.write(QMI8658_AX_L);
+    Wire.endTransmission(false);
+    Wire.requestFrom(this->device_addr, (uint8_t)12, (uint8_t)true);
+    for (int i = 0; i < 12; i++) {
+        while(Wire.available() == 0)
+        {
+            if (millis() - beforeRequest > QMI8658_COMM_TIMEOUT)
+                return;
         }
-    } else {
-        digitalWrite(_cs_pin, LOW);
-        _spi->transfer(reg | 0x80);
-        for (uint8_t i = 0; i < length; i++) {
-            buffer[i] = _spi->transfer(0x00);
+        if (i % 2 == 0)
+        {
+            readings[i >> 1] = (int16_t)Wire.read();
         }
-        digitalWrite(_cs_pin, HIGH);
+        else
+        {
+            readings[i >> 1] |= (int16_t)Wire.read() << 8;
+        }
     }
 }
 
-int16_t QMI8658A::combineBytes(uint8_t low, uint8_t high) {
-    return (int16_t)((high << 8) | low);
+inline void QMI8658A::QMI8658_update_if_needed()
+{
+    if (sensor_state == sensor_locking
+        && micros() - reading_timestamp_us > QMI8658_REFRESH_DELAY)
+    {
+        QMI8658_sensor_update();
+    }
 }
 
-float QMI8658A::convertAcceleration(int16_t raw) {
-    float scale;
-    switch (_acc_range) {
-        case QMI8658A_ACC_RANGE_2G:  scale = 2.0f / 32768.0f; break;
-        case QMI8658A_ACC_RANGE_4G:  scale = 4.0f / 32768.0f; break;
-        case QMI8658A_ACC_RANGE_8G:  scale = 8.0f / 32768.0f; break;
-        case QMI8658A_ACC_RANGE_16G: scale = 16.0f / 32768.0f; break;
-        default: scale = 2.0f / 32768.0f;
+/**
+ * Set output data rate (ODR) of accelerometer.
+ * @param odr acc_odr_t variable representing new data rate
+ */
+void QMI8658A::setAccODR(acc_odr_t odr)
+{
+    if (this->sensor_state != sensor_default)
+    {
+        byte ctrl2 = QMI8658A_receive(QMI8658_CTRL2);
+        ctrl2 &= ~QMI8658_AODR_MASK; // clear previous setting
+        ctrl2 |= odr; // OR in new setting
+        QMI8658A_transmit(QMI8658_CTRL2, ctrl2);
     }
-    return raw * scale;
+    this->acc_odr = odr;
 }
 
-float QMI8658A::convertGyroscope(int16_t raw) {
-    float scale;
-    switch (_gyro_range) {
-        case QMI8658A_GYRO_RANGE_16DPS:   scale = 16.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_32DPS:   scale = 32.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_64DPS:   scale = 64.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_128DPS:  scale = 128.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_256DPS:  scale = 256.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_512DPS:  scale = 512.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_1024DPS: scale = 1024.0f / 32768.0f; break;
-        case QMI8658A_GYRO_RANGE_2048DPS: scale = 2048.0f / 32768.0f; break;
-        default: scale = 256.0f / 32768.0f;
+/**
+ * Set output data rate (ODR) of gyro.
+ * @param odr gyro_odr_t variable representing new data rate
+ */
+void QMI8658A::setGyroODR(gyro_odr_t odr)
+{
+    if (this->sensor_state != sensor_default)
+    {
+    byte ctrl3 = QMI8658A_receive(QMI8658_CTRL3);
+    ctrl3 &= ~QMI8658_GODR_MASK; // clear previous setting
+    ctrl3 |= odr; // OR in new setting
+    QMI8658A_transmit(QMI8658_CTRL3, ctrl3);
     }
-    return raw * scale;
+    this->gyro_odr = odr;
+}
+
+/**
+ * Set scale of accelerometer output.
+ * @param scale acc_scale_t variable representing new scale
+ */
+void QMI8658A::setAccScale(acc_scale_t scale)
+{
+    if (this->sensor_state != sensor_default)
+    {
+    byte ctrl2 = QMI8658A_receive(QMI8658_CTRL2);
+    ctrl2 &= ~QMI8658_ASCALE_MASK; // clear previous setting
+    ctrl2 |= scale << QMI8658_ASCALE_OFFSET; // OR in new setting
+    QMI8658A_transmit(QMI8658_CTRL2, ctrl2);
+    }
+    this->acc_scale = scale;
+}
+
+/**
+ * Set scale of gyro output.
+ * @param scale gyro_scale_t variable representing new scale
+ */
+void QMI8658A::setGyroScale(gyro_scale_t scale)
+{
+    if (this->sensor_state != sensor_default)
+    {
+    byte ctrl3 = QMI8658A_receive(QMI8658_CTRL3);
+    ctrl3 &= ~QMI8658_GSCALE_MASK; // clear previous setting
+    ctrl3 |= scale << QMI8658_GSCALE_OFFSET; // OR in new setting
+    QMI8658A_transmit(QMI8658_CTRL3, ctrl3);
+    }
+    this->gyro_scale = scale;
+}
+
+/**
+ * Set new low-pass filter value for accelerometer
+ * @param lp lpf_t variable representing new low-pass filter value
+ */
+void QMI8658A::setAccLPF(lpf_t lpf)
+{
+    if (this->sensor_state != sensor_default)
+    {
+    byte ctrl5 = QMI8658A_receive(QMI8658_CTRL5);
+    ctrl5 &= !QMI8658_ALPF_MASK;
+    ctrl5 |= lpf << QMI8658_ALPF_OFFSET;
+    ctrl5 |= 0x01; // turn on acc low pass filter
+    QMI8658A_transmit(QMI8658_CTRL5, ctrl5);
+    }
+    this->acc_lpf = lpf;
+}
+
+/**
+ * Set new low-pass filter value for gyro
+ * @param lp lpf_t variable representing new low-pass filter value
+ */
+void QMI8658A::setGyroLPF(lpf_t lpf)
+{
+    if (this->sensor_state != sensor_default)
+    {
+    byte ctrl5 = QMI8658A_receive(QMI8658_CTRL5);
+    ctrl5 &= !QMI8658_GLPF_MASK;
+    ctrl5 |= lpf << QMI8658_GLPF_OFFSET;
+    ctrl5 |= 0x10; // turn on gyro low pass filter
+    QMI8658A_transmit(QMI8658_CTRL5, ctrl5);
+    }
+}
+
+/**
+ * Set new state of QMI8658A.
+ * @param state new state to transition to
+ */
+void QMI8658A::setState(sensor_state_t state)
+{
+    byte ctrl1;
+    switch (state)
+    {
+    case sensor_running:
+        ctrl1 = QMI8658A_receive(QMI8658_CTRL1);
+        // enable 2MHz oscillator
+        ctrl1 &= 0xFE;
+        // enable auto address increment for fast block reads
+        ctrl1 |= 0x40;
+        QMI8658A_transmit(QMI8658_CTRL1, ctrl1);
+
+        // enable high speed internal clock,
+        // acc and gyro in full mode, and
+        // disable syncSample mode
+        QMI8658A_transmit(QMI8658_CTRL7, 0x43);
+
+        // disable AttitudeEngine Motion On Demand
+        QMI8658A_transmit(QMI8658_CTRL6, 0x00);
+        break;
+    case sensor_power_down:
+        // disable high speed internal clock,
+        // acc and gyro powered down
+        QMI8658A_transmit(QMI8658_CTRL7, 0x00);
+
+        ctrl1 = QMI8658A_receive(QMI8658_CTRL1);
+        // disable 2MHz oscillator
+        ctrl1|= 0x01;
+        QMI8658A_transmit(QMI8658_CTRL1, ctrl1);
+        break;
+    case sensor_locking:
+        ctrl1 = QMI8658A_receive(QMI8658_CTRL1);
+        // enable 2MHz oscillator
+        ctrl1 &= 0xFE;
+        // enable auto address increment for fast block reads
+        ctrl1 |= 0x40;
+        QMI8658A_transmit(QMI8658_CTRL1, ctrl1);
+
+        // enable high speed internal clock,
+        // acc and gyro in full mode, and
+        // enable syncSample mode
+        QMI8658A_transmit(QMI8658_CTRL7, 0x83);
+
+        // disable AttitudeEngine Motion On Demand
+        QMI8658A_transmit(QMI8658_CTRL6, 0x00);
+
+        // disable internal AHB clock gating:
+        QMI8658A_transmit(QMI8658_CAL1_L, 0x01);
+        QMI8658A_CTRL9_Write(0x12);
+        // re-enable clock gating
+        QMI8658A_transmit(QMI8658_CAL1_L, 0x00);
+        QMI8658A_CTRL9_Write(0x12);
+        break;
+    default:
+        break;
+    }
+    this->sensor_state = state;
+}
+
+/**
+ * Retrieves raw readings in int16_t form and copies
+ * them into the provided pointer location.
+ * @param buf pointer to destination buffer
+ */
+void QMI8658A::getRawReadings(int16_t* buf)
+{
+    QMI8658A::QMI8658_sensor_update();
+    memcpy((void*) buf, (void*)readings, sizeof(readings));
+}
+
+/**
+ * Get X-axis acceleration in floating point g units.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return X-axis acceleration, in g
+ */
+float QMI8658A::getAccX()
+{
+    float xval;
+    QMI8658_update_if_needed();
+    if (sensor_state == sensor_locking) {  // 修复：== 而不是 =
+        xval = (float)readings[0];
+    }
+    else {
+        xval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_AX_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_AX_H) << 8)
+        );
+    }
+    xval *= (float)(2 << acc_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return xval;
+}
+
+/**
+ * Get Y-axis acceleration in floating point g units.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return Y-axis acceleration, in g
+ */
+float QMI8658A::getAccY()
+{
+    float yval;
+    // update sensor values if necessary
+    QMI8658_update_if_needed();
+    if (sensor_state = sensor_locking) {
+        yval = (float)readings[1];
+    }
+    else {
+        yval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_AY_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_AY_H) << 8)
+        );
+    }
+    yval *= (float)(2 << acc_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return yval;
+}
+
+/**
+ * Get Z-axis acceleration in floating point g units.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return Z-axis acceleration, in g
+ */
+float QMI8658A::getAccZ()
+{
+    float zval;
+    // update sensor values if necessary
+    QMI8658_update_if_needed();
+    if (sensor_state = sensor_locking) {
+        zval = (float)readings[2];
+    }
+    else {
+        zval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_AZ_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_AZ_H) << 8)
+        );
+    }
+    zval *= (float)(2 << acc_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return zval;
+}
+
+/**
+ * Get X-axis angular velocity in floating point dps.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return X-axis angular velocity, in degrees per second
+ */
+float QMI8658A::getGyroX()
+{
+    float xval;
+    // update sensor values if necessary
+    QMI8658_update_if_needed();
+    if (sensor_state = sensor_locking) {
+        xval = (float)readings[3];
+    }
+    else {
+        xval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_GX_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_GX_H) << 8)
+        );
+    }
+    xval *= (float)(16 << gyro_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return xval;
+}
+
+/**
+ * Get Y-axis angular velocity in floating point dps.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return Y-axis angular velocity, in degrees per second
+ */
+float QMI8658A::getGyroY()
+{
+    float yval;
+    // update sensor values if necessary
+    QMI8658_update_if_needed();
+    if (sensor_state = sensor_locking) {
+        yval = (float)readings[4];
+    }
+    else {
+        yval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_GY_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_GY_H) << 8)
+        );
+    }
+    yval *= (float)(16 << gyro_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return yval;
+}
+
+/**
+ * Get Z-axis angular velocity in floating point dps.
+ * If in locking mode, this will retrieve new data
+ * as needed from the sensor, or use a local version
+ * if the data is fresh enough. In running mode,
+ * this gets the most recent data from the sensor.
+ * @return Z-axis angular velocity, in degrees per second
+ */
+float QMI8658A::getGyroZ()
+{
+    float zval;
+    // update sensor values if necessary
+    QMI8658_update_if_needed();
+    if (sensor_state = sensor_locking) {
+        zval = (float)readings[5];
+    }
+    else {
+        zval = (float)(
+            (int16_t)QMI8658A_receive(QMI8658_GZ_L)
+            | ((int16_t)QMI8658A_receive(QMI8658_GZ_H) << 8)
+        );
+    }
+    zval *= (float)(16 << gyro_scale) * QMI8658_SIXTEENBIT_SCALER;
+    return zval;
+}
+
+QMI8658A::~QMI8658A()
+{
 }

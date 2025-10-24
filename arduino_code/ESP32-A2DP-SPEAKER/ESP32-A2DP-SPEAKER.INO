@@ -1,6 +1,6 @@
 /**
  * ESP32 经典蓝牙A2DP音箱程序
- * 
+ *
  * 重要说明：此程序仅适用于ESP32经典版本，不支持ESP32S3！
  *
  * 功能特性：
@@ -11,9 +11,19 @@
  * 5. 自动重连已配对设备
  * 6. 低延时高音质音频传输
  *
+ * 硬件连接：
+ * PCM5102 DAC模块：
+ *   - BCK  -> GPIO33 (I2S位时钟)
+ *   - LRCK -> GPIO26 (I2S左右声道时钟)
+ *   - DIN  -> GPIO25 (I2S数据输入)
+ *   - GND  -> GND
+ *   - VIN  -> 3.3V
+ *   - SCK  -> GND (不使用主时钟)
+ *   - MUTE -> GPIO27 (静音控制，可选)
+ *
  * 其他引脚：
- * IO0  -> BOOT按钮（连按5下恢复出厂设置）
- * IO7  -> 音量控制ADC输入
+ *   - IO0  -> BOOT按钮（连按5下恢复出厂设置）
+ *   - IO34 -> 音量控制ADC输入（可选）
  *
  * 使用方法：
  * 1. 首次开机进入蓝牙广播模式
@@ -25,31 +35,28 @@
  * @date 2024
  */
 
-#include "AudioTools.h"
 #include "BluetoothA2DPSink.h"
 #include "OneButton.h"
 #include "Preferences.h"
 #include "driver/i2s.h"
 
 // ==================== 引脚定义 ====================
-#define I2S_SCK_PIN     32    // System Clock (MCLK)
-#define I2S_DIN_PIN     25    // Data In
 #define I2S_BCK_PIN     33    // Bit Clock
 #define I2S_LRCK_PIN    26    // Left/Right Clock (WS)
-#define I2S_MUTE_PIN    27    // Mute Control
+#define I2S_DIN_PIN     25    // Data In
+#define I2S_MUTE_PIN    27    // Mute Control (可选)
 #define BOOT_BUTTON_PIN 0     // BOOT按钮
-#define VOLUME_ADC_PIN  34     // 音量控制ADC
+#define VOLUME_ADC_PIN  34    // 音量控制ADC
 
 // ==================== 全局对象 ====================
-I2SStream i2s;
-BluetoothA2DPSink a2dp_sink(i2s);
+BluetoothA2DPSink a2dp_sink;
 OneButton bootButton(BOOT_BUTTON_PIN, true);
 Preferences preferences;
 
 // ==================== 全局变量 ====================
-float currentVolume = 0.5;
+float currentVolume = 0.8;  // 默认音量80%
 unsigned long lastVolumeCheck = 0;
-const unsigned long VOLUME_CHECK_INTERVAL = 100;
+const unsigned long VOLUME_CHECK_INTERVAL = 300;
 bool isConnected = false;
 String deviceName = "ESP-AI-SPEAKER";
 int buttonClickCount = 0;
@@ -58,10 +65,11 @@ const unsigned long MULTI_CLICK_TIMEOUT = 1000;
 
 // ==================== I2S配置 ====================
 void setupI2S() {
-  // 配置MUTE引脚
+  // 配置MUTE引脚（可选）
   pinMode(I2S_MUTE_PIN, OUTPUT);
   digitalWrite(I2S_MUTE_PIN, HIGH); // PCM5102 MUTE引脚高电平取消静音
-  
+
+  // I2S配置结构体
   i2s_config_t i2s_config = {
     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate = 44100,
@@ -71,23 +79,25 @@ void setupI2S() {
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count = 8,
     .dma_buf_len = 512,
-    .use_apll = true,
+    .use_apll = false,  // 不使用APLL，PCM5102不需要
     .tx_desc_auto_clear = true,
     .fixed_mclk = 0
   };
 
+  // I2S引脚配置
   i2s_pin_config_t pin_config = {
-    .mck_io_num = I2S_SCK_PIN,      // Master Clock
-    .bck_io_num = I2S_BCK_PIN,      // Bit Clock
-    .ws_io_num = I2S_LRCK_PIN,      // Word Select (L/R Clock)
-    .data_out_num = I2S_DIN_PIN,    // Data Out
-    .data_in_num = I2S_PIN_NO_CHANGE
+    .mck_io_num = I2S_PIN_NO_CHANGE,  // PCM5102不需要MCLK
+    .bck_io_num = I2S_BCK_PIN,        // Bit Clock
+    .ws_io_num = I2S_LRCK_PIN,        // Word Select (L/R Clock)
+    .data_out_num = I2S_DIN_PIN,      // Data Out
+    .data_in_num = I2S_PIN_NO_CHANGE  // 不使用输入
   };
 
+  // 安装I2S驱动
   i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
   i2s_set_pin(I2S_NUM_0, &pin_config);
   i2s_set_clk(I2S_NUM_0, 44100, I2S_BITS_PER_SAMPLE_16BIT, I2S_CHANNEL_STEREO);
-  
+
   Serial.println("PCM5102 I2S配置完成");
 }
 
@@ -100,12 +110,12 @@ void read_data_stream(const uint8_t *data, uint32_t length) {
       memcpy(tempBuffer, data, length);
       int16_t* audioData = (int16_t*)tempBuffer;
       int samples = length / 2;
-      
+
       // 应用音量控制
       for (int i = 0; i < samples; i++) {
-        audioData[i] = (int16_t)(audioData[i] * currentVolume);
+        audioData[i] = (int16_t)(audioData[i] * currentVolume*0.2);
       }
-      
+
       // 输出到I2S
       size_t bytes_written;
       i2s_write(I2S_NUM_0, tempBuffer, length, &bytes_written, portMAX_DELAY);
@@ -149,7 +159,12 @@ void updateVolume() {
   
   if (fabs(newVolume - currentVolume) > 0.02) {
     currentVolume = newVolume;
+    digitalWrite(I2S_MUTE_PIN, HIGH); 
     Serial.printf("音量调整: %.2f (ADC: %d)\n", currentVolume, adcValue);
+  }
+  else if (newVolume <= 0.1) {
+    digitalWrite(I2S_MUTE_PIN, LOW); 
+    Serial.printf("音量调整:静音\n");
   }
 }
 
@@ -247,42 +262,37 @@ bool loadBluetoothConfig() {
 void setup() {
   Serial.begin(115200);
   Serial.println("ESP32 蓝牙A2DP音箱启动中...");
-  
+  Serial.println("版本：纯A2DP库实现，不使用AudioTools");
+
+  // 配置ADC分辨率
   analogReadResolution(12);
-  
+
+  // 配置按钮
   bootButton.attachClick(handleButtonClick);
   bootButton.setClickTicks(250);
   bootButton.setPressTicks(1000);
   bootButton.setDebounceTicks(50);
-  
-  // 配置MUTE引脚
-  pinMode(I2S_MUTE_PIN, OUTPUT);
-  digitalWrite(I2S_MUTE_PIN, HIGH);
-  
-  // 配置I2S for PCM5102
-  auto cfg = i2s.defaultConfig(TX_MODE);
-  cfg.sample_rate = 44100;
-  cfg.bits_per_sample = 16;
-  cfg.channels = 2;
-  cfg.pin_bck = 33;        // BCK
-  cfg.pin_ws = 26;         // LRCK  
-  cfg.pin_data = 25;       // DIN
-  cfg.pin_mck = -1;        // PCM5102不需要MCLK
-  cfg.use_apll = false;    // 不使用APLL
-  
-  i2s.begin(cfg);
-  
+
+  // 配置I2S硬件
+  setupI2S();
+
+  // 设置A2DP音频数据回调
+  a2dp_sink.set_stream_reader(read_data_stream, false);
+
   // 启用自动重连功能
   a2dp_sink.set_auto_reconnect(true);
-  
+
   // 设置连接状态回调
   a2dp_sink.set_on_connection_state_changed(connection_state_changed);
   a2dp_sink.set_on_audio_state_changed(audio_state_changed);
-  
-  // 启动A2DP
+
+  // 启动A2DP蓝牙接收器
   a2dp_sink.start("ESP-AI-SPEAKER");
-  
-  Serial.println("PCM5102音箱已启动，自动重连已启用");
+
+  Serial.println("PCM5102音箱已启动");
+  Serial.println("蓝牙设备名称: ESP-AI-SPEAKER");
+  Serial.println("自动重连已启用");
+  Serial.println("等待蓝牙连接...");
 }
 
 void loop() {

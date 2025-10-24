@@ -103,7 +103,7 @@ void setupI2S() {
 
 // ==================== 音频数据处理回调 ====================
 void read_data_stream(const uint8_t *data, uint32_t length) {
-  if (currentVolume > 0.0 && length > 0) {
+  if (currentVolume >= 0.0 && length > 0) {
     // 创建临时缓冲区用于音量调整
     uint8_t* tempBuffer = (uint8_t*)malloc(length);
     if (tempBuffer) {
@@ -113,7 +113,7 @@ void read_data_stream(const uint8_t *data, uint32_t length) {
 
       // 应用音量控制
       for (int i = 0; i < samples; i++) {
-        audioData[i] = (int16_t)(audioData[i] * currentVolume*0.2);
+        audioData[i] = (int16_t)(audioData[i] * (currentVolume * 0.4 > 0.3 ? 0.3 : currentVolume * 0.4));
       }
 
       // 输出到I2S
@@ -159,11 +159,10 @@ void updateVolume() {
   
   if (fabs(newVolume - currentVolume) > 0.02) {
     currentVolume = newVolume;
-    digitalWrite(I2S_MUTE_PIN, HIGH); 
     Serial.printf("音量调整: %.2f (ADC: %d)\n", currentVolume, adcValue);
   }
-  else if (newVolume <= 0.1) {
-    digitalWrite(I2S_MUTE_PIN, LOW); 
+  else if (newVolume <= 0.1) { 
+    currentVolume = 0;
     Serial.printf("音量调整:静音\n");
   }
 }

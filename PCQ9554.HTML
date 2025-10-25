@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCA9554 程序控制核心内容总结</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            line-height: 1.8;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+        }
+        h1, h2, h3, h4 {
+            color: #2d3748;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        h1 {
+            font-size: 26px;
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 12px;
+            text-align: center;
+        }
+        h2 {
+            font-size: 22px;
+            border-left: 5px solid #3182ce;
+            padding-left: 12px;
+            margin-top: 40px;
+        }
+        h3 {
+            font-size: 19px;
+            color: #3182ce;
+            margin-top: 30px;
+        }
+        h4 {
+            font-size: 17px;
+            color: #4a5568;
+            margin-top: 25px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            border: 1px solid #e2e8f0;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background-color: #edf2f7;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        tr:nth-child(even) {
+            background-color: #f7fafc;
+        }
+        .code-block {
+            background-color: #2d3748;
+            color: #f7fafc;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: "Consolas", "Monaco", monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px 15px;
+            margin: 15px 0;
+            color: #856404;
+        }
+        .key-info {
+            color: #d62828;
+            font-weight: 600;
+        }
+        ul, ol {
+            margin-left: 20px;
+            margin-bottom: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PCA9554 程序控制核心内容总结（基于 PCA9554_9554A.pdf）</h1>
+
+        <!-- 一、I2C从机地址配置（程序通信基础） -->
+        <div class="section">
+            <h2>一、I2C从机地址配置（程序通信基础）</h2>
+            <p>PCA9554 的 I2C 从机地址由<strong>固定前缀</strong>和<strong>硬件可配置位（A0/A1/A2）</strong>组成，程序中需先确定地址才能建立 I2C 通信，核心规则如下：</p>
+            
+            <h3>1.1 地址格式</h3>
+            <p>PCA9554 的 8 位 I2C 地址结构为：<code>00100 A2 A1 A0 R/W</code>，各字段含义：</p>
+            <ul>
+                <li><strong>固定前缀（00100）</strong>：PCA9554 专属固定位，不可修改（区别于 PCA9554A 的 00111 前缀）；</li>
+                <li><strong>A2/A1/A0</strong>：硬件配置位，由引脚电平决定（接地=0，接 VDD=1），程序需与硬件接线匹配；</li>
+                <li><strong>R/W</strong>：读写控制位（1=读操作，0=写操作），程序中需根据操作类型动态设置。</li>
+            </ul>
+
+            <h3>1.2 典型地址示例（A0/A1/A2 接地场景）</h3>
+            <p>当 A0、A1、A2 均接地（电平为 0）时，地址计算如下：</p>
+            <ul>
+                <li>写操作地址（R/W=0）：<code>00100 0 0 0 0 = 0x40</code>（程序中 I2C 写通信的从机地址）；</li>
+                <li>读操作地址（R/W=1）：<code>00100 0 0 0 1 = 0x41</code>（程序中 I2C 读通信的从机地址）。</li>
+            </ul>
+            <div class="note">
+                注意：若硬件中 A0/A1/A2 接 VDD（电平为 1），需同步修改程序中的地址（如 A0=1 时，写地址为 0x41，读地址为 0x42），确保与硬件配置一致。
+            </div>
+        </div>
+
+        <!-- 二、核心寄存器与程序操作规则 -->
+        <div class="section">
+            <h2>二、核心寄存器与程序操作规则</h2>
+            <p>PCA9554 包含 4 个 8 位寄存器，程序通过「<strong>发送命令字节→读写寄存器数据</strong>」的流程控制 I/O 功能，各寄存器的作用、访问权限及操作规则如下：</p>
+
+            <h3>2.1 寄存器映射与命令字节</h3>
+            <p>程序需先发送「命令字节」指定目标寄存器，再执行读写操作，命令字节与寄存器的对应关系如下表：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>命令字节值（十六进制）</th>
+                        <th>对应寄存器</th>
+                        <th>操作类型</th>
+                        <th>核心功能</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>0x00</td>
+                        <td>输入端口寄存器（Register 0）</td>
+                        <td>仅读</td>
+                        <td>读取 IO0~IO7 引脚的实际输入电平（无论引脚配置为输入/输出）</td>
+                    </tr>
+                    <tr>
+                        <td>0x01</td>
+                        <td>输出端口寄存器（Register 1）</td>
+                        <td>读/写</td>
+                        <td>设置/读取输出引脚（IO0~IO7）的输出电平（对输入引脚无影响）</td>
+                    </tr>
+                    <tr>
+                        <td>0x02</td>
+                        <td>极性反转寄存器（Register 2）</td>
+                        <td>读/写</td>
+                        <td>控制输入端口寄存器数据的极性（1=反转，0=保持原极性）</td>
+                    </tr>
+                    <tr>
+                        <td>0x03</td>
+                        <td>配置寄存器（Register 3）</td>
+                        <td>读/写</td>
+                        <td>配置 IO0~IO7 的方向（1=输入，0=输出），上电默认全为输入</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="note">
+                关键规则：器件不支持「自动增量」功能，一旦发送命令字节指定某寄存器，后续读写操作将持续访问该寄存器，直到发送新的命令字节。
+            </div>
+
+            <h3>2.2 各寄存器程序操作详解</h3>
+            <!-- 2.2.1 配置寄存器（I/O方向配置） -->
+            <h4>2.2.1 配置寄存器（Register 3，地址 0x03）</h4>
+            <p><strong>功能</strong>：程序通过该寄存器设置每个 I/O 引脚为「输入」或「输出」，位定义如下：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>位序号（Bit）</th>
+                        <th>符号</th>
+                        <th>值=1 时功能</th>
+                        <th>值=0 时功能</th>
+                        <th>上电默认值</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7</td>
+                        <td>C7</td>
+                        <td>IO7 配置为输入（高阻态，带 100kΩ 弱上拉）</td>
+                        <td>IO7 配置为输出</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>C6</td>
+                        <td>IO6 配置为输入</td>
+                        <td>IO6 配置为输出</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                    </tr>
+                    <tr>
+                        <td>0</td>
+                        <td>C0</td>
+                        <td>IO0 配置为输入</td>
+                        <td>IO0 配置为输出</td>
+                        <td>1</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>程序示例（配置 IO0~IO3 为输出，IO4~IO7 为输入）</strong>：</p>
+            <div class="code-block">
+/* I2C 从机写地址（A0/A1/A2 接地） */<br>
+#define PCA9554_ADDR_WRITE 0x40<br>
+/* 配置寄存器命令字节 */<br>
+#define PCA9554_CMD_CONFIG 0x03<br>
+/* 配置值：IO0~IO3=0（输出），IO4~IO7=1（输入） */<br>
+#define PCA9554_CONFIG_VAL 0xF0  // 二进制：11110000<br>
+
+/* 函数：配置 I/O 方向 */<br>
+void PCA9554_ConfigIO(void) {<br>
+    // 1. 发送 I2C 起始条件<br>
+    I2C_Start();<br>
+    // 2. 发送从机写地址，等待 ACK<br>
+    I2C_SendByte(PCA9554_ADDR_WRITE);<br>
+    if (I2C_WaitAck() != 0) return; // 未收到 ACK 则退出<br>
+    // 3. 发送配置寄存器命令字节，等待 ACK<br>
+    I2C_SendByte(PCA9554_CMD_CONFIG);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    // 4. 发送配置值，等待 ACK<br>
+    I2C_SendByte(PCA9554_CONFIG_VAL);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    // 5. 发送 I2C 停止条件<br>
+    I2C_Stop();<br>
+}<br>
+            </div>
+
+            <!-- 2.2.2 输出端口寄存器（输出电平控制） -->
+            <h4>2.2.2 输出端口寄存器（Register 1，地址 0x01）</h4>
+            <p><strong>功能</strong>：仅对「配置为输出」的引脚生效，程序通过该寄存器设置其输出电平，位定义如下：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>位序号（Bit）</th>
+                        <th>符号</th>
+                        <th>值=1 时功能</th>
+                        <th>值=0 时功能</th>
+                        <th>上电默认值</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7</td>
+                        <td>O7</td>
+                        <td>IO7（输出模式）输出高电平</td>
+                        <td>IO7（输出模式）输出低电平</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>O6</td>
+                        <td>IO6（输出模式）输出高电平</td>
+                        <td>IO6（输出模式）输出低电平</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                    </tr>
+                    <tr>
+                        <td>0</td>
+                        <td>O0</td>
+                        <td>IO0（输出模式）输出高电平</td>
+                        <td>IO0（输出模式）输出低电平</td>
+                        <td>1</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>程序示例（设置 IO0 输出低电平，IO1 输出高电平）</strong>：</p>
+            <div class="code-block">
+/* 输出端口寄存器命令字节 */<br>
+#define PCA9554_CMD_OUTPUT 0x01<br>
+/* 输出值：IO0=0（低），IO1=1（高），其他输出引脚保持默认 1 */<br>
+#define PCA9554_OUTPUT_VAL 0xFE  // 二进制：11111110<br>
+
+/* 函数：设置输出引脚电平 */<br>
+void PCA9554_SetOutput(uint8_t output_val) {<br>
+    I2C_Start();<br>
+    I2C_SendByte(PCA9554_ADDR_WRITE);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_SendByte(PCA9554_CMD_OUTPUT);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_SendByte(output_val); // 写入自定义输出值<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_Stop();<br>
+}<br>
+
+// 调用示例：设置 IO0 低、IO1 高<br>
+PCA9554_SetOutput(0xFE);<br>
+            </div>
+
+            <!-- 2.2.3 输入端口寄存器（输入电平读取） -->
+            <h4>2.2.3 输入端口寄存器（Register 0，地址 0x00）</h4>
+            <p><strong>功能</strong>：程序读取该寄存器获取 IO0~IO7 的实际输入电平（即使引脚被配置为输出，也能读取引脚实际状态），位定义如下：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>位序号（Bit）</th>
+                        <th>符号</th>
+                        <th>值含义</th>
+                        <th>访问权限</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7</td>
+                        <td>I7</td>
+                        <td>反映 IO7 引脚的实际电平（X：由外部电平决定，无外部信号时因内部上拉为 1）</td>
+                        <td>仅读</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>I6</td>
+                        <td>反映 IO6 引脚的实际电平</td>
+                        <td>仅读</td>
+                    </tr>
+                    <tr>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>仅读</td>
+                    </tr>
+                    <tr>
+                        <td>0</td>
+                        <td>I0</td>
+                        <td>反映 IO0 引脚的实际电平</td>
+                        <td>仅读</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>程序示例（读取所有输入引脚的电平）</strong>：</p>
+            <div class="code-block">
+/* I2C 从机读地址（A0/A1/A2 接地） */<br>
+#define PCA9554_ADDR_READ 0x41<br>
+/* 输入端口寄存器命令字节 */<br>
+#define PCA9554_CMD_INPUT 0x00<br>
+
+/* 函数：读取输入引脚电平，返回 8 位数据（Bit7=IO7，Bit0=IO0） */<br>
+uint8_t PCA9554_ReadInput(void) {<br>
+    uint8_t input_val = 0;<br>
+    I2C_Start();<br>
+    // 第一步：发送命令字节，指定读取「输入端口寄存器」<br>
+    I2C_SendByte(PCA9554_ADDR_WRITE);<br>
+    if (I2C_WaitAck() != 0) return 0xFF; // 异常返回全 1<br>
+    I2C_SendByte(PCA9554_CMD_INPUT);<br>
+    if (I2C_WaitAck() != 0) return 0xFF;<br>
+    // 第二步：重复起始条件，切换为读操作<br>
+    I2C_ReStart();<br>
+    I2C_SendByte(PCA9554_ADDR_READ);<br>
+    if (I2C_WaitAck() != 0) return 0xFF;<br>
+    // 第三步：读取数据，发送 NACK（表示最后一字节）<br>
+    input_val = I2C_ReadByte();<br>
+    I2C_SendNack(); // 读操作最后一字节无需 ACK<br>
+    I2C_Stop();<br>
+    return input_val;<br>
+}<br>
+
+// 调用示例：读取输入电平并判断 IO4 是否为高<br>
+uint8_t val = PCA9554_ReadInput();<br>
+if ((val & 0x10) != 0) { // IO4 对应 Bit4，掩码 0x10<br>
+    // IO4 为高电平<br>
+} else {<br>
+    // IO4 为低电平<br>
+}<br>
+            </div>
+
+            <!-- 2.2.4 极性反转寄存器（输入极性控制） -->
+            <h4>2.2.4 极性反转寄存器（Register 2，地址 0x02）</h4>
+            <p><strong>功能</strong>：程序通过该寄存器反转「输入端口寄存器」的读取结果极性，仅对输入数据生效，位定义如下：</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>位序号（Bit）</th>
+                        <th>符号</th>
+                        <th>值=1 时功能</th>
+                        <th>值=0 时功能</th>
+                        <th>上电默认值</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>7</td>
+                        <td>N7</td>
+                        <td>IO7 的输入数据极性反转（高→低，低→高）</td>
+                        <td>IO7 的输入数据极性保持不变</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td>6</td>
+                        <td>N6</td>
+                        <td>IO6 的输入数据极性反转</td>
+                        <td>IO6 的输入数据极性保持不变</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                        <td>...</td>
+                    </tr>
+                    <tr>
+                        <td>0</td>
+                        <td>N0</td>
+                        <td>IO0 的输入数据极性反转</td>
+                        <td>IO0 的输入数据极性保持不变</td>
+                        <td>0</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong>程序示例（反转 IO2 和 IO3 的输入极性）</strong>：</p>
+            <div class="code-block">
+/* 极性反转寄存器命令字节 */<br>
+#define PCA9554_CMD_POLARITY 0x02<br>
+/* 极性配置值：IO2=1（反转），IO3=1（反转），其他=0（不反转） */<br>
+#define PCA9554_POLARITY_VAL 0x0C  // 二进制：00001100<br>
+
+/* 函数：配置输入数据极性 */<br>
+void PCA9554_SetPolarity(uint8_t polarity_val) {<br>
+    I2C_Start();<br>
+    I2C_SendByte(PCA9554_ADDR_WRITE);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_SendByte(PCA9554_CMD_POLARITY);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_SendByte(polarity_val);<br>
+    if (I2C_WaitAck() != 0) return;<br>
+    I2C_Stop();<br>
+}<br>
+
+// 调用示例：反转 IO2、IO3 输入极性<br>
+PCA9554_SetPolarity(0x0C);<br>
+            </div>
+        </div>
+
+        <!-- 三、中断功能程序控制 -->
+        <div class="section">
+            <h2>三、中断功能程序控制</h2>
+            <p>PCA9554 具有开漏中断输出（INT 引脚），用于通知主机「输入引脚状态变化」，程序需处理中断触发、复位及避免虚假中断，核心规则如下：</p>
+
+            <h3>3.1 中断触发与复位条件</h3>
+            <ul>
+                <li><strong>触发条件</strong>：当「配置为输入」的引脚状态（高/低）与「输入端口寄存器」中存储的历史值不一致时，INT 引脚拉低（激活中断）；</li>
+                <li><strong>复位条件</strong>：两种方式可复位中断（INT 引脚恢复高电平）：
+                    <ol>
+                        <li>输入引脚状态恢复到与「输入端口寄存器」一致；</li>
+                        <li>程序读取「输入端口寄存器」（执行读操作后，寄存器值更新为当前引脚状态，中断自动解除）。</li>
+                    </ol>
+                </li>
+            </ul>
+
+            <h3>3.2 程序处理流程（以 MCU 外部中断为例）</h3>
+            <div class="code-block">
+/* 1. 初始化 INT 引脚（MCU 侧，配置为下降沿触发中断） */<br>
+void PCA9554_INT_Init(void) {<br>
+    // 配置 INT 引脚为输入模式（假设连接 MCU 的 PA0 引脚）<br>
+    GPIO_Init(PA0, GPIO_MODE_INPUT);<br>
+    // 配置外部中断：下降沿触发（INT 从高变低时触发）<br>
+    EXTI_Init(PA0, EXTI_TRIGGER_FALLING);<br>
+    // 使能中断<br>
+    EXTI_EnableIRQ(PA0, ENABLE);<br>
+}<br>
+
+/* 2. 中断服务函数（处理输入状态变化） */<br>
+void EXTI_PA0_IRQHandler(void) {<br>
+    if (EXTI_GetFlagStatus(PA0) == SET) {<br>
+        uint8_t input_val;<br>
+        // 读取输入端口寄存器：更新寄存器值，复位中断<br>
+        input_val = PCA9554_ReadInput();<br>
+        // 处理输入数据（示例：判断 IO4 状态变化）<br>
+        static uint8_t last_io4_val = 1;<br>
+        uint8_t current_io4_val = (input_val & 0x10) ? 1 : 0;<br>
+        if (current_io4_val != last_io4_val) {<br>
+            // IO4 状态发生变化，执行对应逻辑<br>
+            if (current_io4_val == 1) {<br>
+                // IO4 从低变高<br>
+            } else {<br>
+                // IO4 从高变低<br>
+            }<br>
+            last_io4_val = current_io4_val;<br>
+        }<br>
+        // 清除中断标志<br>
+        EXTI_ClearFlagStatus(PA0);<br>
+    }<br>
+}<br>
+            </div>
+
+            <h3>3.3 避免虚假中断的注意事项</h3>
+            <div class="note">
+                当程序将 I/O 引脚从「输出模式」切换为「输入模式」时，若引脚当前实际电平与「输入端口寄存器」中的历史值不一致，会触发虚假中断。<br>
+                解决方案：切换 I/O 方向后，立即读取一次「输入端口寄存器」，更新寄存器值以匹配当前引脚电平，避免虚假中断。
+            </div>
+            <p><strong>程序示例（切换 I/O 方向后避免虚假中断）</strong>：</p>
+            <div class="code-block">
+/* 切换 IO5 从输出为输入 */<br>
+void PCA9554_SwitchIO5_to_Input(void) {<br>
+    uint8_t config_val;<br>
+    // 1. 读取当前配置值<br>
+    I2C_Start();<br>
+    I2C_SendByte(PCA9554_ADDR_WRITE);<br>
+    I2C_WaitAck();<br>
+    I2C_SendByte(PCA9554_CMD_CONFIG);<br>
+    I2C_WaitAck();<br>
+    I2C_ReStart();<br>
+    I2C_SendByte(PCA9554_ADDR_READ);<br>
+    I2C_WaitAck();<br>
+    config_val = I2C_ReadByte();<br>
+    I2C_SendNack();<br>
+    I2C_Stop();<br>
+    // 2. 设置 IO5 为输入（Bit5 置 1）<br>
+    config_val |= 0x20; // IO5 对应 Bit5，掩码 0x20<br>
+    PCA9554_ConfigIO_ByVal(config_val); // 自定义函数：写入新配置值<br>
+    // 3. 立即读取输入寄存器，更新值，避免虚假中断<br>
+    PCA9554_ReadInput();<br>
+}<br>
+            </div>
+        </div>
+
+        <!-- 四、上电复位与初始化流程 -->
+        <div class="section">
+            <h2>四、上电复位与程序初始化流程</h2>
+            <p>PCA9554 上电后会自动执行内部上电复位（POR），初始化寄存器和状态机，程序需基于复位后的默认状态设计初始化流程。</p>
+
+            <h3>4.1 上电复位默认状态</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>寄存器</th>
+                        <th>默认值（十六进制）</th>
+                        <th>默认状态描述</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>输入端口寄存器（Register 0）</td>
+                        <td>0xXX（X=外部电平）</td>
+                        <td>值由引脚外部电平决定，无外部信号时因内部上拉为 0xFF</td>
+                    </tr>
+                    <tr>
+                        <td>输出端口寄存器（Register 1）</td>
+                        <td>0xFF</td>
+                        <td>所有输出引脚默认输出高电平（对输入引脚无影响）</td>
+                    </tr>
+                    <tr>
+                        <td>极性反转寄存器（Register 2）</td>
+                        <td>0x00</td>
+                        <td>所有输入数据极性不反转</td>
+                    </tr>
+                    <tr>
+                        <td>配置寄存器（Register 3）</td>
+                        <td>0xFF</td>
+                        <td>所有 I/O 引脚默认配置为输入（带 100kΩ 弱上拉）</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>4.2 程序初始化流程（推荐）</h3>
+            <p>基于默认状态，程序初始化需依次完成「I2C 通信初始化→I/O 方向配置→输出电平配置→中断使能」，流程如下：</p>
+            <div class="code-block">
+/* PCA9554 初始化函数 */<br>
+void PCA9554_Init(void) {<br>
+    // 1. 初始化 MCU 的 I2C 外设（配置时钟、引脚等）<br>
+    I2C_Master_Init(400000); // 400kHz（器件支持 0~400kHz）<br>
+    // 2. 配置 I/O 方向（示例：IO0~IO3=输出，IO4~IO7=输入）<br>
+    PCA9554_ConfigIO();<br>
+    // 3. 设置初始输出电平（示例：IO0=低，IO1=高）<br>
+    PCA9554_SetOutput(0xFE);<br>
+    // 4. 配置输入极性（按需启用，示例：不反转）<br>
+    PCA9554_SetPolarity(0x00);<br>
+    // 5. 初始化中断（按需启用）<br>
+    PCA9554_INT_Init();<br>
+}<br>
+
+// 主函数中调用初始化<br>
+int main(void) {<br>
+    // 系统初始化（时钟、GPIO 等）<br>
+    System_Init();<br>
+    // PCA9554 初始化<br>
+    PCA9554_Init();<br>
+    // 主循环<br>
+    while (1) {<br>
+        // 执行其他逻辑（如周期性读取输入、更新输出）<br>
+    }<br>
+}<br>
+            </div>
+        </div>
+
+        <!-- 五、关键电气参数与程序适配 -->
+        <div class="section">
+            <h2>五、关键电气参数与程序适配</h2>
+            <p>程序设计需适配器件的电气特性，避免超出极限值导致器件损坏，核心参数如下：</p>
+
+            <h3>5.1 供电与 I/O 电平适配</h3>
+            <ul>
+                <li><strong>供电电压（VDD）</strong>：2.3V~5.5V，程序需确保 MCU 为 PCA9554 提供的电源在此范围内；</li>
+                <li><strong>I/O 电平耐受</strong>：I/O 引脚支持 5V 耐受，即使 VDD=3.3V，也可接收 5V 输入信号，程序无需额外电平转换（但输出电平由 VDD 决定，VDD=3.3V 时输出高电平为 3.3V）。</li>
+            </ul>
+
+            <h3>5.2 I2C 时钟频率</h3>
+            <p>器件支持 0kHz~400kHz 的 SCL 时钟频率，程序中 I2C 主机时钟配置需在此范围内，推荐：</p>
+            <ul>
+                <li>标准模式：100kHz（兼容性好，适用于长距离通信）；</li>
+                <li>快速模式：400kHz（适用于短距离、高速度需求场景）。</li>
+            </ul>
+
+            <h3>5.3 输出电流限制</h3>
+            <div class="note">
+                关键限制：每个 I/O 引脚的最大输出电流为 ±25mA（需外部限流），器件总输出电流最大为 100mA。程序设计时，若驱动 LED、继电器等负载，需确保负载电流不超出限制，必要时添加限流电阻或驱动电路。
+            </div>
+        </div>
+    </div>
+</body>
+</html>

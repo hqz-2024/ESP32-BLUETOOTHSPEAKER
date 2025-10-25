@@ -53,11 +53,12 @@ void read_data_stream(const uint8_t *data, uint32_t length) {
       i2s_write(I2S_NUM_0, tempBuffer, length, &bytes_written, portMAX_DELAY);
       free(tempBuffer);
     }
-  } else if (length > 0) {
-    // 音量为0时输出静音
-    size_t bytes_written;
-    i2s_write(I2S_NUM_0, data, length, &bytes_written, portMAX_DELAY);
-  }
+  } 
+  // else if (length > 0) {
+  //   // 音量为0时输出静音
+  //   size_t bytes_written;
+  //   i2s_write(I2S_NUM_0, data, length, &bytes_written, portMAX_DELAY);
+  // }
 }
 
 /**

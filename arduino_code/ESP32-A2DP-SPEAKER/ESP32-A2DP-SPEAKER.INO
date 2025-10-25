@@ -10,6 +10,10 @@
  * 4. IO34 ADC音量控制
  * 5. 自动重连已配对设备
  * 6. 低延时高音质音频传输
+ * 7. WS2812 RGB LED状态指示
+ *    - 未连接：蓝色闪烁（1秒间隔）
+ *    - 已连接未播放：蓝色长亮
+ *    - 播放中：绿色呼吸灯效果
  *
  * 硬件连接：
  * PCM5102 DAC模块：
@@ -24,12 +28,14 @@
  * 其他引脚：
  *   - IO0  -> BOOT按钮（连按5下恢复出厂设置）
  *   - IO34 -> 音量控制ADC输入（可选）
+ *   - IO12 -> WS2812 RGB LED数据引脚
  *
  * 使用方法：
- * 1. 首次开机进入蓝牙广播模式
+ * 1. 首次开机进入蓝牙广播模式（蓝色闪烁）
  * 2. 手机搜索"ESP-AI-SPEAKER"并连接
- * 3. 连接成功后自动播放手机音频
- * 4. 支持所有标准A2DP设备
+ * 3. 连接成功后LED变为蓝色长亮
+ * 4. 播放音乐时LED显示绿色呼吸灯效果
+ * 5. 支持所有标准A2DP设备
  *
  * @author ESP-AI Team
  * @date 2024
@@ -39,6 +45,7 @@
 #include "OneButton.h"
 #include "Preferences.h"
 #include "driver/i2s.h"
+#include <Adafruit_NeoPixel.h>
 
 // ==================== 引脚定义 ====================
 #define I2S_BCK_PIN     33    // Bit Clock
@@ -47,21 +54,30 @@
 #define I2S_MUTE_PIN    27    // Mute Control (可选)
 #define BOOT_BUTTON_PIN 0     // BOOT按钮
 #define VOLUME_ADC_PIN  34    // 音量控制ADC
+#define WS2812_PIN      12    // WS2812 RGB灯珠引脚
 
 // ==================== 全局对象 ====================
 BluetoothA2DPSink a2dp_sink;
 OneButton bootButton(BOOT_BUTTON_PIN, true);
 Preferences preferences;
+Adafruit_NeoPixel rgbLed(1, WS2812_PIN, NEO_GRB + NEO_KHZ800);
 
 // ==================== 全局变量 ====================
 float currentVolume = 0.8;  // 默认音量80%
 unsigned long lastVolumeCheck = 0;
 const unsigned long VOLUME_CHECK_INTERVAL = 300;
 bool isConnected = false;
+bool isPlaying = false;  // 播放状态标志
 String deviceName = "ESP-AI-SPEAKER";
 int buttonClickCount = 0;
 unsigned long lastClickTime = 0;
 const unsigned long MULTI_CLICK_TIMEOUT = 1000;
+
+// LED控制变量
+unsigned long lastLedUpdate = 0;
+int breathBrightness = 0;
+int breathDirection = 1;
+bool ledBlinkState = false;
 
 // ==================== I2S配置 ====================
 void setupI2S() {
@@ -150,20 +166,84 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
 void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
   Serial.printf("A2DP audio state: %s\n",
     state == ESP_A2D_AUDIO_STATE_STARTED ? "Started" : "Stopped");
+
+  // 更新播放状态
+  isPlaying = (state == ESP_A2D_AUDIO_STATE_STARTED);
 }
 
 // ==================== 音量控制函数 ====================
 void updateVolume() {
+  // 读取ADC值
   int adcValue = analogRead(VOLUME_ADC_PIN);
-  float newVolume = (float)adcValue / 4095.0;
-  
-  if (fabs(newVolume - currentVolume) > 0.02) {
-    currentVolume = newVolume;
-    Serial.printf("音量调整: %.2f (ADC: %d)\n", currentVolume, adcValue);
+
+  // 转换为0-1范围
+  float rawVolume = (float)adcValue / 4095.0;
+
+  // 量化为0.05的分辨率（0, 0.05, 0.1, 0.15, ..., 1.0）
+  // 共21个档位：0, 0.05, 0.10, 0.15, 0.20, ..., 0.95, 1.00
+  float quantizedVolume = round(rawVolume * 20.0) / 20.0;
+
+  // 限制范围在0.0-1.0之间
+  if (quantizedVolume < 0.0) quantizedVolume = 0.0;
+  if (quantizedVolume > 1.0) quantizedVolume = 1.0;
+
+  // 只有当量化后的值发生变化时才更新
+  if (fabs(quantizedVolume - currentVolume) > 0.04) {
+    currentVolume = quantizedVolume;
+    Serial.printf("音量调整: %.2f (ADC: %d, 档位: %d/20)\n",
+                  currentVolume, adcValue, (int)(currentVolume * 20));
   }
-  else if (newVolume <= 0.1) { 
-    currentVolume = 0;
-    Serial.printf("音量调整:静音\n");
+}
+
+// ==================== WS2812 RGB LED控制函数 ====================
+void updateRgbLed() {
+  unsigned long currentTime = millis();
+
+  if (!isConnected) {
+    // 状态1: 未连接 - 蓝色闪烁，间隔1秒
+    if (currentTime - lastLedUpdate >= 1000) {
+      lastLedUpdate = currentTime;
+      ledBlinkState = !ledBlinkState;
+
+      if (ledBlinkState) {
+        rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 255));  // 蓝色
+        rgbLed.setBrightness(100);
+      } else {
+        rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 0));    // 熄灭
+      }
+      rgbLed.show();
+    }
+  }
+  else if (isConnected && !isPlaying) {
+    // 状态2: 已连接但未播放 - 蓝色长亮
+    if (currentTime - lastLedUpdate >= 100) {
+      lastLedUpdate = currentTime;
+      rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 255));    // 蓝色
+      rgbLed.setBrightness(100);
+      rgbLed.show();
+    }
+  }
+  else if (isConnected && isPlaying) {
+    // 状态3: 播放中 - 绿色呼吸灯效果
+    if (currentTime - lastLedUpdate >= 30) {  // 20ms更新一次，实现平滑呼吸效果
+      lastLedUpdate = currentTime;
+
+      // 更新呼吸亮度
+      breathBrightness += breathDirection * 3;
+
+      // 反转方向
+      if (breathBrightness >= 100) {
+        breathBrightness = 100;
+        breathDirection = -1.5;
+      } else if (breathBrightness <= 1) {
+        breathBrightness = 1;
+        breathDirection = 1;
+      }
+
+      rgbLed.setPixelColor(0, rgbLed.Color(0, breathBrightness, 0));  // 绿色渐变
+      rgbLed.setBrightness(100);
+      rgbLed.show();
+    }
   }
 }
 
@@ -266,6 +346,13 @@ void setup() {
   // 配置ADC分辨率
   analogReadResolution(12);
 
+  // 初始化WS2812 RGB LED
+  rgbLed.begin();
+  rgbLed.setBrightness(100);
+  rgbLed.setPixelColor(0, rgbLed.Color(0, 0, 255));  // 启动时显示蓝色
+  rgbLed.show();
+  Serial.println("WS2812 RGB LED已初始化");
+
   // 配置按钮
   bootButton.attachClick(handleButtonClick);
   bootButton.setClickTicks(250);
@@ -297,25 +384,29 @@ void setup() {
 void loop() {
   bootButton.tick();
   checkMultiClickTimeout();
-  
+
   // 定期检查音量控制
   unsigned long currentTime = millis();
   if (currentTime - lastVolumeCheck >= VOLUME_CHECK_INTERVAL) {
     updateVolume();
     lastVolumeCheck = currentTime;
   }
-  
+
+  // 更新RGB LED状态指示
+  updateRgbLed();
+
   // 状态指示和重连状态
   static unsigned long lastStatusPrint = 0;
   if (currentTime - lastStatusPrint >= 10000) {
     esp_a2d_connection_state_t conn_state = a2dp_sink.get_connection_state();
-    Serial.printf("状态 - 连接: %s, 音量: %.2f, 重连状态: %s\n", 
-                  isConnected ? "已连接" : "未连接", 
+    Serial.printf("状态 - 连接: %s, 播放: %s, 音量: %.2f, 重连状态: %s\n",
+                  isConnected ? "已连接" : "未连接",
+                  isPlaying ? "播放中" : "暂停",
                   currentVolume,
                   conn_state == ESP_A2D_CONNECTION_STATE_CONNECTING ? "重连中" : "空闲");
     lastStatusPrint = currentTime;
   }
-  
+
   delay(10);
 }
 

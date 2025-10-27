@@ -33,7 +33,7 @@
 #define DEFAULT_VOLUME          0.8     // 默认音量 (0.0 - 1.0)
 #define VOLUME_CHECK_INTERVAL   300     // 音量检查间隔 (毫秒)
 #define VOLUME_QUANTIZE_STEPS   20      // 音量量化档位数 (0-20档)
-#define VOLUME_MAX_GAIN         0.3     // 最大音量增益限制
+#define VOLUME_MAX_GAIN         0.6     // 最大音量增益限制
 
 // ==================== 按钮控制参数 ====================
 #define MULTI_CLICK_TIMEOUT     1000    // 多击超时时间 (毫秒)

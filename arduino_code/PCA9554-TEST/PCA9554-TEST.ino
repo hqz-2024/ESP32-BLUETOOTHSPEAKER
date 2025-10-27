@@ -104,14 +104,12 @@ void loop() {
   if (interruptTriggered) {
     interruptTriggered = false;
     
-    // 延迟以消除抖动
-    delay(20);
     
     // 检查 IO 变化
     checkIOChanges();
   }
   
-  delay(10);
+
 }
 
 // ==================== 函数实现 ====================

@@ -26,6 +26,12 @@ void setupI2S() {
   Serial.printf("  - MUTE引脚: %d (HIGH=取消静音)\n", I2S_MUTE_PIN);
 }
 
+void setI2Smute(bool mute) {
+  pinMode(I2S_MUTE_PIN, OUTPUT);
+  digitalWrite(I2S_MUTE_PIN, !mute); // PCM5102 MUTE引脚高电平取消静音
+}
+
+
 /**
  * 音频数据流处理回调函数
  */
@@ -65,7 +71,7 @@ void read_data_stream(const uint8_t *data, uint32_t length) {
  * 设置当前音量
  */
 void setAudioVolume(float volume) {
-  if (volume < 0.0) volume = 0.0;
+  if (volume < 0.2) volume = 0.0;
   if (volume > 1.0) volume = 1.0;
   currentVolume = volume;
 }

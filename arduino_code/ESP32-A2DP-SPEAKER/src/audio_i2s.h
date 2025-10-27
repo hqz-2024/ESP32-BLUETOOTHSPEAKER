@@ -44,3 +44,4 @@ float getAudioVolume();
 
 #endif // AUDIO_I2S_H
 
+void setI2Smute(bool mute);

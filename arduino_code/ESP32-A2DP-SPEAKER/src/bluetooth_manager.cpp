@@ -170,3 +170,54 @@ void factoryReset() {
   ESP.restart();
 }
 
+/**
+ * 播放/暂停切换
+ */
+void togglePlayPause() {
+  if (!isConnected) {
+    return;
+  }
+
+  if (isPlaying) {
+    a2dp_sink.pause();
+  } else {
+    a2dp_sink.play();
+  }
+}
+
+/**
+ * 播放
+ */
+void playMusic() {
+  if (isConnected) {
+    a2dp_sink.play();
+  }
+}
+
+/**
+ * 暂停
+ */
+void pauseMusic() {
+  if (isConnected) {
+    a2dp_sink.pause();
+  }
+}
+
+/**
+ * 下一曲
+ */
+void nextTrack() {
+  if (isConnected) {
+    a2dp_sink.next();
+  }
+}
+
+/**
+ * 上一曲
+ */
+void previousTrack() {
+  if (isConnected) {
+    a2dp_sink.previous();
+  }
+}
+

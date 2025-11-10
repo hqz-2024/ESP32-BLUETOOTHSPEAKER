@@ -63,5 +63,19 @@
 #define LED_COLOR_RED           255, 0, 0    // 红色 - 错误状态
 #define LED_COLOR_YELLOW        255, 255, 0  // 黄色 - 警告状态
 
+// ====================PCA9554 配置参数 ====================
+
+// I2C 引脚配置
+#define I2C_SDA_PIN 4      // SDA 引脚
+#define I2C_SCL_PIN 15     // SCL 引脚
+#define I2C_FREQ 100000    // I2C 频率 (100kHz)
+
+// PCA9554 配置
+#define PCA9554_ADDR 0x38  // 7位 I2C 地址
+
+// 中断引脚配置
+#define INT_PIN 2          // INT 引脚 (GPIO2)
+
+
 #endif // USERCONFIG_H
 

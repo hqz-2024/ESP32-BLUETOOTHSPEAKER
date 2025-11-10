@@ -58,6 +58,7 @@
 #include "src/led_control.h"
 #include "src/button_handler.h"
 #include "src/config_manager.h"
+#include "src/pca9554_handler.h"
 
 // ==================== 初始化函数 ====================
 void setup() {
@@ -80,6 +81,13 @@ void setup() {
   // 设置A2DP音频数据回调
   getA2DPSink()->set_stream_reader(read_data_stream, false);
 
+  // 初始化PCA9554 IO扩展芯片
+  if (initPCA9554Handler()) {
+    Serial.println("PCA9554 初始化成功");
+  } else {
+    Serial.println("PCA9554 初始化失败，跳过IO扩展功能");
+  }
+
   Serial.println("========================================");
   Serial.println("PCM5102音箱已启动");
   Serial.printf("蓝牙设备名称: %s\n", BT_DEVICE_NAME);
@@ -97,6 +105,9 @@ void loop() {
 
   // 更新LED状态指示
   updateRgbLed(isBluetoothConnected(), isAudioPlaying());
+
+  // 更新PCA9554状态
+  updatePCA9554();
 
   // 定期打印状态信息
   static unsigned long lastStatusPrint = 0;

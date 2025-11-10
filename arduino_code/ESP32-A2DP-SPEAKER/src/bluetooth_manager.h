@@ -61,5 +61,31 @@ bool isAudioPlaying();
  */
 void factoryReset();
 
+/**
+ * 播放/暂停切换
+ * 如果当前正在播放则暂停，如果暂停则播放
+ */
+void togglePlayPause();
+
+/**
+ * 播放
+ */
+void playMusic();
+
+/**
+ * 暂停
+ */
+void pauseMusic();
+
+/**
+ * 下一曲
+ */
+void nextTrack();
+
+/**
+ * 上一曲
+ */
+void previousTrack();
+
 #endif // BLUETOOTH_MANAGER_H
 

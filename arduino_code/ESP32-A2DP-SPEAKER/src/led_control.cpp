@@ -25,7 +25,7 @@ static bool ledBlinkState = false;
  */
 void initLedControl() {
   rgbLed.begin();
-  rgbLed.setBrightness(LED_BRIGHTNESS);
+  // rgbLed.setBrightness(LED_B/GHTNESS);
   rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));  // 启动时显示蓝色
   rgbLed.show();
   Serial.println("WS2812 RGB LED已初始化");
@@ -76,12 +76,10 @@ void updateRgbLed(bool connected, bool playing) {
       } else if (breathBrightness <= 1) {
         breathBrightness = 1;
         breathDirection = 1;
-      }
-
       rgbLed.setPixelColor(0, rgbLed.Color(0, breathBrightness, 0));  // 绿色渐变
       rgbLed.setBrightness(LED_BRIGHTNESS);
       rgbLed.show();
     }
   }
 }
-
+}

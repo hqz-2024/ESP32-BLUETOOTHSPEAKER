@@ -66,6 +66,8 @@ void setup() {
   Serial.println("ESP32 蓝牙A2DP音箱启动中...");
   Serial.println("版本：模块化架构，易于维护和扩展");
   Serial.println("========================================");
+  
+  setI2Smute(true);       //先静音，避免开机爆音
 
   // 初始化各个功能模块
   initVolumeControl();    // 初始化音量控制

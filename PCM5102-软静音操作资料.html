@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCM510xA系列 IC XSMT引脚软静音操作资料</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2, h3, h4 { color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        h1 { font-size: 24px; }
+        h2 { font-size: 20px; margin-top: 30px; }
+        h3 { font-size: 18px; margin-top: 25px; }
+        h4 { font-size: 16px; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .note { background-color: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0; }
+        .warning { background-color: #f8d7da; padding: 15px; border-left: 4px solid #dc3545; margin: 20px 0; }
+        .param-table { margin: 15px 0; }
+        .timing-diagram { margin: 20px 0; text-align: center; }
+        .timing-diagram img { max-width: 100%; height: auto; border: 1px solid #eee; padding: 10px; border-radius: 4px; }
+        .application-schematic { margin: 20px 0; text-align: center; }
+        .application-schematic img { max-width: 100%; height: auto; border: 1px solid #eee; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PCM510xA系列（PCM5100A/5101A/5102A及其Q1车规版）XSMT引脚软静音操作资料</h1>
+        
+        <h2>1. XSMT引脚基础信息</h2>
+        <table class="param-table">
+            <tr>
+                <th>引脚属性</th>
+                <th>参数值/描述</th>
+            </tr>
+            <tr>
+                <td>引脚编号</td>
+                <td>17脚（20-Pin TSSOP封装，顶视图）</td>
+            </tr>
+            <tr>
+                <td>引脚类型</td>
+                <td>输入（Failsafe LVCMOS施密特触发器输入）</td>
+            </tr>
+            <tr>
+                <td>核心功能</td>
+                <td>软静音（Soft Mute）/软取消静音（Soft Un-Mute）控制</td>
+            </tr>
+            <tr>
+                <td>逻辑电平标准</td>
+                <td>兼容1.8V或3.3V LVCMOS（与DVDD电压一致）</td>
+            </tr>
+            <tr>
+                <td>输入电流</td>
+                <td>I<sub>IH</sub>（高电平输入电流）≤10μA；I<sub>IL</sub>（低电平输入电流）≥-10μA</td>
+            </tr>
+            <tr>
+                <td>时序要求</td>
+                <td>上升时间（t<sub>r</sub>）≤20ns；下降时间（t<sub>f</sub>）≤20ns</td>
+            </tr>
+        </table>
+
+        <h2>2. 软静音核心工作逻辑</h2>
+        <p>XSMT引脚通过电平切换触发“平滑衰减/增益”机制，避免音频信号硬切换（如开关机、信号中断）产生的瞬时爆音，核心逻辑分为“软静音激活”和“软取消静音激活”两类操作。</p>
+
+        <h3>2.1 软静音激活（XSMT从高→低电平）</h3>
+        <p>当XSMT引脚从高电平（≥0.7×DVDD）切换至低电平（≤0.3×DVDD）时，触发以下流程：</p>
+        <ol>
+            <li>启动数字信号平滑衰减：以“1dB/采样周期（t<sub>S</sub>）”的速率，从当前音频电平（如0dBFS）衰减至-∞ dBFS；</li>
+            <li>衰减总时长：需104个采样周期（例：48kHz采样时约2.17ms，192kHz采样时约0.54ms）；</li>
+            <li>模拟静音收尾：数字衰减完成后，自动激活模拟静音电路，将OUTL/OUTR输出拉至“双极性零电平（Bipolar Zero）”，确保无残留噪声。</li>
+        </ol>
+
+        <h3>2.2 软取消静音激活（XSMT从低→高电平）</h3>
+        <p>当XSMT引脚从低电平（≤0.3×DVDD）切换至高电平（≥0.7×DVDD）时，触发以下流程：</p>
+        <ol>
+            <li>启动数字信号平滑增益：以“1dB/采样周期（t<sub>S</sub>）”的速率，从-∞ dBFS恢复至目标音频电平（如0dBFS）；</li>
+            <li>恢复总时长：同样需104个采样周期（与软静音衰减时长一致）；</li>
+            <li>模拟电路唤醒：增益过程中，模拟输出电路同步唤醒，避免恢复过程中产生瞬时噪声。</li>
+        </ol>
+
+        <div class="note">
+            <strong>注意</strong>：若无需主动控制静音（如固定播放场景），XSMT引脚可直接连接至AVDD（3.3V），此时设备默认处于“软取消静音”状态，无额外操作即可正常输出音频。
+        </div>
+
+        <h2>3. XSMT引脚时序要求</h2>
+        <p>为确保软静音/取消静音功能稳定触发，需满足以下时序参数（基于PCM510xA电气特性规范）：</p>
+        <table class="param-table">
+            <tr>
+                <th>时序参数</th>
+                <th>最小值（MIN）</th>
+                <th>典型值（TYP）</th>
+                <th>最大值（MAX）</th>
+                <th>单位</th>
+                <th>测试条件</th>
+            </tr>
+            <tr>
+                <td>上升时间（t<sub>r</sub>）</td>
+                <td>—</td>
+                <td>—</td>
+                <td>20</td>
+                <td>ns</td>
+                <td>从0.1×DVDD上升至0.9×DVDD</td>
+            </tr>
+            <tr>
+                <td>下降时间（t<sub>f</sub>）</td>
+                <td>—</td>
+                <td>—</td>
+                <td>20</td>
+                <td>ns</td>
+                <td>从0.9×DVDD下降至0.1×DVDD</td>
+            </tr>
+            <tr>
+                <td>软静音总时长</td>
+                <td>104×t<sub>S</sub></td>
+                <td>—</td>
+                <td>104×t<sub>S</sub>+0.2ms</td>
+                <td>ms</td>
+                <td>t<sub>S</sub>=1/采样频率（如48kHz时t<sub>S</sub>≈20.83μs）</td>
+            </tr>
+            <tr>
+                <td>软取消静音总时长</td>
+                <td>104×t<sub>S</sub></td>
+                <td>—</td>
+                <td>104×t<sub>S</sub>+0.2ms</td>
+                <td>ms</td>
+                <td>同软静音时长条件</td>
+            </tr>
+        </table>
+
+        <div class="timing-diagram">
+            <h4>图1：XSMT引脚软静音/取消静音时序波形</h4>
+            <img src="https://via.placeholder.com/800x300?text=XSMT+Timing+Diagram" alt="XSMT时序图">
+            <p><small>波形说明：蓝色线为XSMT引脚电平，从0.9×DVDD下降至0.1×DVDD（软静音触发），再从0.1×DVDD上升至0.9×DVDD（软取消静音触发），上升/下降时间均≤20ns。</small></p>
+        </div>
+
+        <h2>4. 典型应用场景与硬件配置</h2>
+        <p>XSMT引脚的软静音功能主要用于解决“开关机爆音”和“信号中断噪声”，以下为具体应用场景的硬件连接与控制逻辑。</p>
+
+        <h3>4.1 场景1：开关机爆音抑制（主动IO控制）</h3>
+        <p>通过主控MCU/DSP的IO引脚连接XSMT，配合电源时序实现无爆音开关机，硬件连接如下：</p>
+        <ul>
+            <li>XSMT引脚 → 主控GPIO（如STM32的PA0引脚）；</li>
+            <li>GPIO需配置为推挽输出模式，电平标准与DVDD一致（1.8V或3.3V）；</li>
+            <li>推荐在XSMT与DGND之间并联10kΩ下拉电阻（防止IO悬空时误触发）。</li>
+        </ul>
+
+        <h4>4.1.1 开机控制时序</h4>
+        <ol>
+            <li>系统上电：AVDD/CPVDD/DVDD电源稳定至3.3V（需等待≥4ms，确保PCM510xA完成Power-On Reset）；</li>
+            <li>IO初始化：主控GPIO输出低电平（XSMT=低），确保设备处于软静音状态；</li>
+            <li>时钟使能：启动SCK/BCK/LRCK时钟（需满足PCM510xA时钟要求，如48kHz采样时BCK=3.072MHz）；</li>
+            <li>软取消静音：延迟≥4ms后，GPIO输出高电平（XSMT=高），启动104个采样周期的增益过程；</li>
+            <li>音频输出：增益完成后（约2.17ms@48kHz），向DIN引脚发送PCM音频数据。</li>
+        </ol>
+
+        <h4>4.1.2 关机控制时序</h4>
+        <ol>
+            <li>触发关机指令：主控检测到关机信号（如用户按键），立即停止向DIN发送音频数据；</li>
+            <li>软静音激活：GPIO输出低电平（XSMT=低），启动104个采样周期的衰减过程；</li>
+            <li>等待静音完成：延迟≥150×t<sub>S</sub>+0.2ms（如48kHz时需3.2ms）；</li>
+            <li>电源切断：确认静音完成后，切断AVDD/CPVDD/DVDD电源。</li>
+        </ol>
+
+        <div class="timing-diagram">
+            <h4>图2：开关机控制时序波形</h4>
+            <img src="https://via.placeholder.com/800x400?text=Power+On%2FOff+Timing+Diagram" alt="开关机时序图">
+            <p><small>波形说明：1. 电源（VDD）上升至3.3V；2. 等待4ms复位；3. XSMT从低→高（开机取消静音）；4. 关机时XSMT从高→低（静音）；5. 延迟后电源切断。</small></p>
+        </div>
+
+        <h3>4.2 场景2：意外断电保护（电源监测模式）</h3>
+        <p>当系统存在高压电源（如12V汽车电源、24V工业电源）时，可通过电阻分压将XSMT配置为“电源欠压监测引脚”，实现意外断电时自动静音，硬件连接如下：</p>
+        <ul>
+            <li>系统高压（如12V）→ 串联分压电阻R1（7.25kΩ）→ XSMT引脚 → 串联分压电阻R2（2.75kΩ）→ GND；</li>
+            <li>分压比计算：需确保正常供电时XSMT=3.3V（例：12V系统时，R1/R2=7.25k/2.75k≈2.63:1，12V/3.63≈3.3V）；</li>
+            <li>电阻功率：推荐选用1/10W及以上精度电阻，避免分压误差导致误触发。</li>
+        </ul>
+
+        <h4>4.2.1 欠压保护触发逻辑</h4>
+        <p>当系统高压跌落时，XSMT引脚电平同步下降，触发两级静音保护：</p>
+        <table class="param-table">
+            <tr>
+                <th>保护级别</th>
+                <th>触发条件（XSMT电平）</th>
+                <th>执行动作</th>
+                <th>典型响应时间</th>
+            </tr>
+            <tr>
+                <td>一级保护（软静音）</td>
+                <td>降至2.0V~2.2V（典型值2.2V）</td>
+                <td>启动数字信号衰减，从0dBFS向-∞衰减</td>
+                <td>≤1ms</td>
+            </tr>
+            <tr>
+                <td>二级保护（模拟静音）</td>
+                <td>降至0.9V~1.2V（典型值0.9V）</td>
+                <td>激活模拟静音电路，DAC及线驱动器断电</td>
+                <td>≤0.5ms</td>
+            </tr>
+        </table>
+
+        <div class="warning">
+            <strong>警告</strong>：XSMT引脚最大输入电压为DVDD+0.3V（如3.3V DVDD时最大3.6V）。分压电阻需确保系统高压波动时（如12V系统出现14.4V尖峰），XSMT电平不超过3.6V，避免损坏引脚。
+        </div>
+
+        <h3>4.3 场景3：信号中断噪声抑制（零数据检测+XSMT联动）</h3>
+        <p>当DIN引脚无音频数据（如播放暂停、信号丢失）时，结合PCM510xA的“零数据检测”功能与XSMT控制，缩短静音响应时间：</p>
+        <ul>
+            <li>零数据检测：设备默认检测1024个LRCK周期（约21ms@48kHz）的零数据后自动静音；</li>
+            <li>XSMT联动优化：主控检测到DIN信号中断后，立即拉低XSMT引脚（主动触发软静音），响应时间缩短至≤2.17ms@48kHz；</li>
+            <li>信号恢复：DIN重新接收数据时，拉高XSMT引脚，启动软取消静音，避免恢复时的冲击噪声。</li>
+        </ul>
+
+        <h3>4.4 典型应用 schematic</h3>
+        <div class="application-schematic">
+            <h4>图3：XSMT引脚硬件控制 subsystem  schematic</h4>
+            <img src="https://via.placeholder.com/800x500?text=XSMT+Application+Schematic" alt="XSMT应用电路图">
+            <p><small>电路说明：1. XSMT连接MCU GPIO与分压电阻（监测12V电源）；2. OUTL/OUTR串联470Ω电阻+并联2.2nF电容（输出滤波）；3. AVDD/CPVDD/DVDD均并联0.1μF+10μF decoupling电容。</small></p>
+        </div>
+
+        <h2>5. 常见问题与排查</h2>
+        <table class="param-table">
+            <tr>
+                <th>问题现象</th>
+                <th>可能原因</th>
+                <th>排查方案</th>
+            </tr>
+            <tr>
+                <td>XSMT切换时仍有爆音</td>
+                <td>1. 上升/下降时间＞20ns；2. 静音前未停止音频数据；3. 电源纹波过大</td>
+                <td>1. 用示波器测量XSMT时序，确保t<sub>r</sub>/t<sub>f</sub>≤20ns；2. 静音前先停止DIN数据传输；3. 加强AVDD/CPVDD decoupling（如增加22μF钽电容）</td>
+            </tr>
+            <tr>
+                <td>XSMT=高时无音频输出</td>
+                <td>1. XSMT电平未达到≥0.7×DVDD；2. 时钟未同步（SCK/BCK/LRCK异常）；3. 设备进入Power-Down模式</td>
+                <td>1. 用万用表测量XSMT电平（如3.3V DVDD时需≥2.31V）；2. 检查时钟频率（如48kHz采样时SCK=24.576MHz）；3. 确认BCK/LRCK未低电平超过1秒（避免Power-Down）</td>
+            </tr>
+            <tr>
+                <td>电源监测模式误触发</td>
+                <td>1. 分压电阻精度不足；2. 系统电源纹波过大；3. XSMT引脚受EMI干扰</td>
+                <td>1. 更换1%精度电阻；2. 在分压节点并联0.1μF陶瓷电容；3. XSMT走线远离SCK/BCK等高频时钟线</td>
+            </tr>
+        </table>
+
+        <h2>6. 相关文档参考</h2>
+        <ul>
+            <li>TI官方数据手册：SLAS859C（PCM5100A/5101A/5102A 数据手册，Revised May 2015）</li>
+            <li>章节参考：9.3.3 XSMT Pin (Soft Mute / Soft Un-Mute)、11.2 Recommended Powerdown Sequence、11.3 External Power Sense Undervoltage Protection Mode</li>
+            <li>应用笔记：TI Application Report SPRA953（IC Package Thermal Metrics）、AN-1867（PCM510xA 应用设计指南）</li>
+        </ul>
+    </div>
+</body>
+</html>

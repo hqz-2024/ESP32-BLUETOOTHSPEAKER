@@ -124,7 +124,7 @@ void loop() {
     lastStatusPrint = currentTime;
   }
 
-  delay(10);
+  delay(1);
 }
 
 

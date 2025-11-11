@@ -76,10 +76,11 @@ void updateRgbLed(bool connected, bool playing) {
       } else if (breathBrightness <= 1) {
         breathBrightness = 1;
         breathDirection = 1;
+      }
       rgbLed.setPixelColor(0, rgbLed.Color(0, breathBrightness, 0));  // 绿色渐变
       rgbLed.setBrightness(LED_BRIGHTNESS);
       rgbLed.show();
     }
   }
 }
-}
+

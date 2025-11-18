@@ -38,7 +38,7 @@
 // ==================== 按钮控制参数 ====================
 #define MULTI_CLICK_TIMEOUT     1000    // 多击超时时间 (毫秒)
 #define FACTORY_RESET_CLICKS    5       // 恢复出厂设置所需点击次数
-#define BUTTON_CLICK_TICKS      250     // 按钮点击时长 (毫秒)
+#define BUTTON_CLICK_TICKS      200     // 按钮点击时长 (毫秒)
 #define BUTTON_PRESS_TICKS      1000    // 按钮长按时长 (毫秒)
 #define BUTTON_DEBOUNCE_TICKS   100     // 按钮防抖时长 (毫秒) - 增加到100ms防止误触发
 #define BUTTON_IDLE_TICKS       150     // 按钮空闲时长 (毫秒) - 两次点击之间的最小间隔

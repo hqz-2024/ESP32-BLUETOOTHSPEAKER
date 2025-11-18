@@ -77,8 +77,8 @@ void setup() {
   // 初始化蓝牙A2DP（会自动配置I2S）
   initBluetooth(BT_DEVICE_NAME);
 
-  // 配置MUTE引脚
-  setupI2S();
+
+  setI2Smute(false);       //配置完成取消静音
 
   // 设置A2DP音频数据回调
   getA2DPSink()->set_stream_reader(read_data_stream, false);

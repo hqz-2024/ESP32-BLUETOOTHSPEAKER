@@ -70,7 +70,7 @@ void setup() {
   setI2Smute(true);       //先静音，避免开机爆音
 
   // 初始化各个功能模块
-  initVolumeControl();    // 初始化音量控制
+  // initVolumeControl();    // 初始化音量控制
   initLedControl();       // 初始化LED控制
   initButtonHandler();    // 初始化按钮处理
 
@@ -103,7 +103,7 @@ void loop() {
   checkMultiClickTimeout();
 
   // 更新音量控制
-  updateVolume();
+  // updateVolume();
 
   // 更新LED状态指示
   updateRgbLed(isBluetoothConnected(), isAudioPlaying());

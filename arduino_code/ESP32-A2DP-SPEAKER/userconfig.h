@@ -20,7 +20,7 @@
 
 // ==================== 控制引脚配置 ====================
 #define BOOT_BUTTON_PIN 0     // BOOT按钮引脚（用于恢复出厂设置）
-#define VOLUME_ADC_PIN  34    // 音量控制ADC输入引脚
+#define VOLUME_ADC_PIN  -1    // 音量控制ADC输入引脚
 #define WS2812_PIN      2    // WS2812 RGB LED数据引脚
 
 // ==================== I2S音频参数配置 ====================
@@ -45,7 +45,7 @@
 
 // ==================== LED控制参数 ====================
 #define WS2812_LED_COUNT        1       // WS2812 LED数量
-#define LED_BRIGHTNESS          100     // LED亮度 (0-255)
+#define LED_BRIGHTNESS          250     // LED亮度 (0-255)
 #define LED_BLINK_INTERVAL      1000    // LED闪烁间隔 (毫秒)
 #define LED_BREATH_INTERVAL     30      // LED呼吸灯更新间隔 (毫秒)
 #define LED_BREATH_STEP         3       // LED呼吸灯亮度步进值

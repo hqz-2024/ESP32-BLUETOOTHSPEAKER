@@ -1,0 +1,24 @@
+#class (KEYWORD1)
+ESP_AI    KEYWORD1
+ 
+ 
+#function and method (KEYWORD2)
+begin      KEYWORD2 
+set_theme_color    KEYWORD2 
+render_gif    KEYWORD2
+render_gif_by_name   KEYWORD2
+render_jpg   KEYWORD2
+set_status_text KEYWORD2
+set_bottom_scrolling_text KEYWORD2
+render_battery    KEYWORD2 
+hide_battery    KEYWORD2 
+recharge     KEYWORD2 
+await_lvgl_initialized    KEYWORD2 
+move_text_top KEYWORD2
+render_signal KEYWORD2
+render_signal_conneact_ani KEYWORD2
+render_volume KEYWORD2
+render_ota_percent KEYWORD2 
+ 
+#constant (LITERAL1)
+#none

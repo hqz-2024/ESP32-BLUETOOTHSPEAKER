@@ -111,6 +111,8 @@ class BufferRP2040T : public BaseBuffer<T> {
 
   int writeArray(const T data[], int len) override {
     LOGD("writeArray: %d", len);
+    // Serial.print("调用 writeArray：");
+    // Serial.println(len);
     int result = 0;
     // make sure that we have the data allocated
     resize(buffer_size_req_bytes / sizeof(T));
@@ -120,6 +122,7 @@ class BufferRP2040T : public BaseBuffer<T> {
     } else {
       result = writeNonBlocking(data, len);
     }
+    // Serial.println("调用 writeArray 完毕。");
 
     return result;
   }

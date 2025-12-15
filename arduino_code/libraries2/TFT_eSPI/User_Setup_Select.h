@@ -258,7 +258,10 @@
      #define  TFT_DRIVER 0x1963
 #elif defined (GC9A01_DRIVER)
      #include "TFT_Drivers/GC9A01_Defines.h"
-     #define  TFT_DRIVER 0x9A01
+     #define  TFT_DRIVER 0x9A01 
+#elif defined (GC9D01_DRIVER)
+     #include "TFT_Drivers/GC9D01_Defines.h"
+     #define  TFT_DRIVER 0x9D01
 #elif defined (ILI9225_DRIVER)
      #include "TFT_Drivers/ILI9225_Defines.h"
      #define  TFT_DRIVER 0x9225

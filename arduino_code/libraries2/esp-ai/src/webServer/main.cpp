@@ -30,7 +30,7 @@
 #include "main.h"
 
 bool start_scan_ssids_ed = false;
- 
+
 void ESP_AI::set_config()
 {
     String loc_wifi_name = get_local_data("wifi_name");
@@ -150,60 +150,60 @@ void ESP_AI::set_config()
         String loc_wifi_name = loc_data["wifi_name"];
         String loc_wifi_name2 = loc_data["wifi_name2"];
         String loc_wifi_name3 = loc_data["wifi_name3"];
-        String loc_wifi_name4 = loc_data["wifi_name4"];
-        String loc_wifi_name5 = loc_data["wifi_name5"];
+        // String loc_wifi_name4 = loc_data["wifi_name4"];
+        // String loc_wifi_name5 = loc_data["wifi_name5"];
         String loc_wifi_pwd = loc_data["wifi_pwd"];
         String loc_wifi_pwd2 = loc_data["wifi_pwd2"];
         String loc_wifi_pwd3 = loc_data["wifi_pwd3"];
-        String loc_wifi_pwd4 = loc_data["wifi_pwd4"];
-        String loc_wifi_pwd5 = loc_data["wifi_pwd5"];
+        // String loc_wifi_pwd4 = loc_data["wifi_pwd4"];
+        // String loc_wifi_pwd5 = loc_data["wifi_pwd5"];
         if (wifi_name == loc_wifi_name2 && wifi_pwd == loc_wifi_pwd2)
         {
             data["wifi_name2"] = loc_wifi_name3;
-            data["wifi_name3"] = loc_wifi_name4;
-            data["wifi_name4"] = loc_wifi_name5;
-            data["wifi_name5"] = "";
+            data["wifi_name3"] = "";
+            // data["wifi_name4"] = loc_wifi_name5;
+            // data["wifi_name5"] = "";
             data["wifi_pwd2"] = loc_wifi_pwd3;
-            data["wifi_pwd3"] = loc_wifi_pwd4;
-            data["wifi_pwd4"] = loc_wifi_pwd5;
-            data["wifi_pwd5"] = "";
+            data["wifi_pwd3"] = "";
+            // data["wifi_pwd4"] = loc_wifi_pwd5;
+            // data["wifi_pwd5"] = "";
             keys = data.keys();
         }
         else if (wifi_name == loc_wifi_name3 && wifi_pwd == loc_wifi_pwd3)
         {
-            data["wifi_name3"] = loc_wifi_name4;
-            data["wifi_name4"] = loc_wifi_name5;
-            data["wifi_name5"] = "";
-            data["wifi_pwd3"] = loc_wifi_pwd4;
-            data["wifi_pwd4"] = loc_wifi_pwd5;
-            data["wifi_pwd5"] = "";
+            data["wifi_name3"] = "";
+            // data["wifi_name4"] = loc_wifi_name5;
+            // data["wifi_name5"] = "";
+            data["wifi_pwd3"] = "";
+            // data["wifi_pwd4"] = loc_wifi_pwd5;
+            // data["wifi_pwd5"] = "";
             keys = data.keys();
         }
-        else if (wifi_name == loc_wifi_name4 && wifi_pwd == loc_wifi_pwd4)
-        {
-            data["wifi_name4"] = loc_wifi_name5;
-            data["wifi_name5"] = "";
-            data["wifi_pwd4"] = loc_wifi_pwd5;
-            data["wifi_pwd5"] = "";
-            keys = data.keys();
-        }
-        else if (wifi_name == loc_wifi_name5 && wifi_pwd == loc_wifi_pwd5)
-        {
-            data["wifi_name5"] = "";
-            data["wifi_pwd5"] = "";
-            keys = data.keys();
-        }
+        // else if (wifi_name == loc_wifi_name4 && wifi_pwd == loc_wifi_pwd4)
+        // {
+        //     data["wifi_name4"] = loc_wifi_name5;
+        //     data["wifi_name5"] = "";
+        //     // data["wifi_pwd4"] = loc_wifi_pwd5;
+        //     // data["wifi_pwd5"] = "";
+        //     keys = data.keys();
+        // }
+        // else if (wifi_name == loc_wifi_name5 && wifi_pwd == loc_wifi_pwd5)
+        // {
+        //     data["wifi_name5"] = "";
+        //     data["wifi_pwd5"] = "";
+        //     keys = data.keys();
+        // }
         else if (loc_wifi_name != "")
         {
             // 去掉最旧的数据
             data["wifi_name2"] = loc_wifi_name;
             data["wifi_name3"] = loc_wifi_name2;
-            data["wifi_name4"] = loc_wifi_name3;
-            data["wifi_name5"] = loc_wifi_name4;
+            // data["wifi_name4"] = loc_wifi_name3;
+            // data["wifi_name5"] = loc_wifi_name4;
             data["wifi_pwd2"] = loc_wifi_pwd;
             data["wifi_pwd3"] = loc_wifi_pwd2;
-            data["wifi_pwd4"] = loc_wifi_pwd3;
-            data["wifi_pwd5"] = loc_wifi_pwd4;
+            // data["wifi_pwd4"] = loc_wifi_pwd3;
+            // data["wifi_pwd5"] = loc_wifi_pwd4;
             keys = data.keys();
         }
 
@@ -303,9 +303,11 @@ void ESP_AI::get_ssids()
     {
         xTaskCreate(ESP_AI::scan_wifi_wrapper, "scan_wifi", 1024 * 8, this, 1, NULL);
         json_response["status"] = "scaning";
+        Serial.println("扫描为完毕，正在扫描中...");
     }
     else
     {
+        Serial.println("扫描完毕");
         json_response["data"] = esp_ai_wifi_scan_json_response_data;
     }
     web_server_setCrossOrigin();
@@ -673,13 +675,13 @@ const char esp_ai_html_str[] PROGMEM = R"rawliteral(
     )rawliteral";
 void ESP_AI::web_server_page_index()
 {
-    web_server_setCrossOrigin();
+    web_server_setCrossOrigin(); 
     if (wifi_config.html_str[0] != '\0')
     {
-        esp_ai_server.send(200, "text/html", wifi_config.html_str.c_str());
+        esp_ai_server.send_P(200, "text/html", wifi_config.html_str);
     }
     else
     {
-        esp_ai_server.send(200, "text/html", esp_ai_html_str);
+        esp_ai_server.send_P(200, "text/html", esp_ai_html_str);
     }
 }

@@ -68,8 +68,8 @@ SPI3_HOST = 2
 */
 
 // ESP32 specific SPI port selection - only SPI2_HOST available on C3
-#define SPI_PORT SPI2_HOST
-
+ 
+#define SPI_PORT SPI2_HOST 
 #ifdef RPI_DISPLAY_TYPE
   #define CMD_BITS (16-1)
 #else

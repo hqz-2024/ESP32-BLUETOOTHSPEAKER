@@ -23,20 +23,20 @@
  * @github https://github.com/wangzongming/esp-ai
  * @websit https://espai.fun
  */
-#include "loop.h"
-
+#include "loop.h" 
 
 void handle_ble_data()
 {
+#if !defined(DISABLE_BLE_NET)
     if (ESP_AI_BLE_RD != "")
-    { 
+    {
         JSONVar data = JSON.parse(ESP_AI_BLE_RD);
-        ESP_AI_BLE_RD = ""; 
+        ESP_AI_BLE_RD = "";
         if (JSON.typeof(data) == "undefined")
         {
             DEBUG_PRINTLN(true, ("传入数据解析失败或者传入了空数据。"));
             play_builtin_audio(lian_jie_shi_bai, lian_jie_shi_bai_len);
-            wait_mp3_player_done(); 
+            wait_mp3_player_done();
 
             String json_response = "{\"success\":false,\"message\":\"传入数据解析失败或者传入了空数据。\"}";
             esp_ai_ble_characteristic->setValue(json_response.c_str());
@@ -44,18 +44,18 @@ void handle_ble_data()
             ESP_AI_BLE_RD = "";
             return;
         }
- 
+
         // 将数据都全部存入本地
         play_builtin_audio(lian_jie_zhong, lian_jie_zhong_len);
         vTaskDelay(pdMS_TO_TICKS(100));
-        wait_mp3_player_done(); 
+        wait_mp3_player_done();
         JSONVar keys = data.keys();
         for (int i = 0; i < keys.length(); i++)
         {
             String key = keys[i];
             JSONVar value = data[key];
             set_local_data(key, String((const char *)value));
-        } 
+        }
 
         // 记录这是蓝牙临时数据
         set_local_data("_ble_temp_", "1");
@@ -63,20 +63,25 @@ void handle_ble_data()
         // 重启板子
         ESP.restart();
     }
+#endif
 }
-
+ 
 
 void ESP_AI::loop()
 {
+    Cron.delay();
+    
+#if !defined(DISABLE_AP_NET)
     if (esp_ai_status == "0_ap" && wifi_config.way == "AP")
     {
         esp_ai_dns_server.processNextRequest();
     }
-
     esp_ai_server.handleClient();
-    esp_ai_webSocket.loop(); 
-
+#endif
+    esp_ai_webSocket.loop();
+#if !defined(DISABLE_BLE_NET)
     handle_ble_data();
+#endif
 
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -93,11 +98,24 @@ void ESP_AI::loop()
             {
                 esp_ai_net_status = "0";
                 onNetStatusCb("0");
-                DEBUG_PRINTLN(debug, ("[Error] -> WIFI 异常断开，将自动重启板子"));
+                DEBUG_PRINTLN(debug, F("[Error] -> WIFI 异常断开，将自动重启板子"));
                 ESP.restart();
             }
         }
         return;
     }
 
+    if (esp_ai_ws_connected && !esp_ai_webSocket.isConnected())
+    {
+        esp_ai_ws_connected = false;
+        DEBUG_PRINTLN(debug, F("[Error] -> WS 连接异常，将自动重新连接服务。"));
+        connect_ws();
+    }
+
+    // 音频复制
+    if (esp_ai_ws_connected && esp_ai_start_send_audio && esp_ai_session_id != "")
+    {
+        mic_to_ws_copier.copyBytes(1024);
+        vTaskDelay(10);
+    } 
 }

@@ -22,6 +22,7 @@ You should have received a copy of the GNU Affero General Public License along w
 #include "FaceBehavior.h"
 #include "LookAssistant.h"
 #include "BlinkAssistant.h"
+#include <Wire.h>
 
 class Face
 {
@@ -43,8 +44,11 @@ public:
     void SetEmotion(const String &emotion);
     // 设置底部滚动消息
     void SetChatMessage(String Message);
+    // 清除底部滚动消息
+    void ClearChatMessage();
     // 设置电池电量,0xFF为正在充电
     void SetBatLevel(uint8_t level);
+    void SetBatHide();
     // 设置音量
     void SetVolume(uint8_t volume);
     // 设置是否只显示一行文字，其他的都不渲染，仅仅显示 notification_message_ 文字。并且居中显示
@@ -65,9 +69,10 @@ private:
     uint8_t bat_level_ = 0;
     uint8_t volume_ = 0;
 
-    bool only_show_notification_ = false; 
+    bool only_show_notification_ = false;
     String chat_message_;
     String notification_message_;
+    bool hide_bat_ = false;
 };
 
 #endif

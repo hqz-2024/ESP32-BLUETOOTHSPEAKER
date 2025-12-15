@@ -28,64 +28,89 @@
  */
 #include "on_repeatedly_click.h"
 
-void ESP_AI::on_repeatedly_click_wrapper(void *arg)
-{
-    ESP_AI *instance = static_cast<ESP_AI *>(arg);
-    instance->on_repeatedly_click();
-}
+StaticTask_t onRepeatedlyClickTaskBuffer;
+StackType_t onRepeatedlyClickTaskStack[ON_REPEATEDLY_CLICK_TASK_SIZE];
 
-void ESP_AI::on_repeatedly_click()
+void on_repeatedly_click_task_static(void *arg)
 {
-    long esp_ai_last_debounce_time = 0;
-    int esp_ai_debounce_delay = 250;
-    int esp_ai_prev_state = reset_btn_config.power == "high" ? 0 : 1;
+    OnRepeatedlyClickContext *ctx = static_cast<OnRepeatedlyClickContext *>(arg);
+    if (!ctx)
+    {
+        Serial.println(F("[Error] OnRepeatedlyClickContext ctx is null!"));
+        vTaskDelete(NULL);
+        return;
+    }
 
-    long last_btn_time = 0;
+    long debounce_time = 0;
+    const int debounce_delay = 250;
+    int prev_state = (*(ctx->power) == "high") ? 0 : 1;
+    int prev_state_boot = 1;
+
+    long last_click_time = 0;
     int click_count = 0;
-    int click_max_delay = 1000;
+    const int max_click_delay = 1000;
+    bool reset_ing = false;
 
     while (true)
     {
-        int reading = digitalRead(reset_btn_config.pin);
-        long curTime = millis();
-        int target_val = reset_btn_config.power == "high" ? 1 : 0;
-        if (reading == target_val)
+        if (reset_ing)
         {
-            if ((curTime - esp_ai_last_debounce_time) > esp_ai_debounce_delay)
-            {
-                esp_ai_last_debounce_time = curTime;
-                if (esp_ai_prev_state != reading)
-                {
-                    esp_ai_prev_state = reading;
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+            return;
+        }
+        int reading = digitalRead(*(ctx->pin));
 
-                    if ((last_btn_time == 0) || (millis() - last_btn_time) <= click_max_delay)
+        long now = millis();
+        int target_val = (*(ctx->power) == "high") ? 1 : 0;
+
+        bool boot_clicked = false;
+        int reading_boot = 1;
+#if defined(IS_BOOT_RESET)
+        reading_boot = digitalRead(BOOT_BUTTON_GPIO);
+        if (reading_boot == 0)
+        {
+            boot_clicked = true;
+        }
+#endif
+
+        if ((reading == target_val) || boot_clicked)
+        {
+            if ((now - debounce_time) > debounce_delay)
+            {
+                debounce_time = now;
+
+                if ((prev_state != reading) || (prev_state_boot != reading_boot))
+                {
+                    prev_state = reading;
+                    prev_state_boot = reading_boot;
+
+                    if ((last_click_time == 0) || ((now - last_click_time) <= max_click_delay))
                     {
-                        last_btn_time = millis();
+                        last_click_time = now;
                         click_count++;
-                        if (click_count == 2)
-                        {
-                            play_builtin_audio(san_ci, san_ci_len);
-                        }
+
                         if (click_count == 5)
                         {
+                            reset_ing = true;
                             click_count = 0;
-                            last_btn_time = 0;
+                            last_click_time = 0;
+                            // 清除会话 ID
+                            *(const_cast<String *>(ctx->esp_ai_session_id)) = "";
 
-                            play_builtin_audio(hui_fu_chu_chang, hui_fu_chu_chang_len);
-                            wait_mp3_player_done();
+                            DEBUG_PRINTLN(*(ctx->debug), F("触发重置设置"));
 
-                            // 结束对话音频
-                            esp_ai_session_id = "";
-                            DEBUG_PRINTLN(debug, F("触发重置设置"));
-                            if (onRepeatedlyClickCb != nullptr)
-                            {
-                                onRepeatedlyClickCb();
-                            }
-                            clearData();
+                            if (ctx->on_repeatedly_click_cb != nullptr)
+                                ctx->on_repeatedly_click_cb();
+
+                            if (ctx->clear_data != nullptr)
+                                ctx->clear_data();
+
+                            // 这个一定需要放到后面
+                            ctx->play_builtin_audio(hui_fu_chu_chang, hui_fu_chu_chang_len);
+                            ctx->wait_mp3_player_done();
+
                             vTaskDelay(100 / portTICK_PERIOD_MS);
-                            ESP.restart();
-                            // 删除任务
-                            vTaskDelete(NULL);
+                            ESP.restart(); // 重启设备
                         }
                     }
                 }
@@ -93,15 +118,17 @@ void ESP_AI::on_repeatedly_click()
         }
         else
         {
-            esp_ai_prev_state = reading;
-            if (click_count != 0 && ((millis() - last_btn_time) >= click_max_delay))
+            prev_state = reading;
+            prev_state_boot = reading_boot;
+            if (click_count != 0 && ((now - last_click_time) >= max_click_delay))
             {
                 click_count = 0;
-                last_btn_time = 0;
+                last_click_time = 0;
             }
         }
 
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(30 / portTICK_PERIOD_MS);
     }
+
     vTaskDelete(NULL);
 }

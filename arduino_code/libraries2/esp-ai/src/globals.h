@@ -32,23 +32,23 @@
 #include <stddef.h>
 #include <Arduino.h>
 #include <driver/i2s.h>
-#include <WiFi.h>
-#include <WiFiMulti.h>
+#include <WiFi.h>  
 #include <WebSocketsClient.h>
+
+#include "USER_CONFIG.h"
+#include "configs/common.h"
+#include "configs/esp-ai-c3.h"
+#include "configs/esp-ai-s3.h"
 
 // 使用 v1.0.1 版本
 #include "AudioTools.h"
+#include "AudioTools/AudioLibs/I2SCodecStream.h"
 
 // 使用 libhelix 对mp3解码
 // 要安装插件： https://github.com/pschatzmann/arduino-libhelix
 // 注释代码： \Documents\Arduino\libraries\arduino-audio-tool\src\AudioCodecs\CodecMP3Helix.h 85行 --1.x 版本作者已经注释
 // #include "AudioCodecs/CodecMP3Helix.h"
 #include "AudioTools/AudioCodecs/CodecMP3Helix.h"
-
-// 使用 LAME 对mp3编码
-// 要安装插件： https://github.com/pschatzmann/arduino-liblame
-// #include "AudioCodecs/CodecMP3LAME.h"
-// #include "AudioTools/AudioCodecs/CodecMP3LAME.h"
 
 #include <Arduino_JSON.h>
 #include <WebServer.h>
@@ -65,70 +65,70 @@
 #include "esp_heap_caps.h"
 #include <DNSServer.h>
 
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-#include "esp_bt.h"
-#include "esp_bt_main.h"
-#include "esp_gap_ble_api.h"
+// 比IDF蓝牙将会节省 42kb.
+#include <NimBLEDevice.h>
+
+#include <time.h> // time() ctime()
+#include "CronAlarms.h"
 
 #include <HTTPClient.h>
 #include "nvs_flash.h"
 
-#include "audio/zh/lian_jie_shi_bai.h"
-#include "audio/zh/lian_jie_zhong.h"
-#include "audio/zh/pei_wang_cheng_gong.h"
-#include "audio/zh/qing_pei_wang.h"
-#include "audio/zh/san_ci.h"
-#include "audio/zh/lian_jie_cheng_gong.h"
-#include "audio/zh/fu_wu_lian_jie_zhong.h"
-#include "audio/zh/yu_e_bu_zuo.h"
-#include "audio/zh/chao_ti_wei_qi_yong.h"
-#include "audio/zh/e_du_ka_bu_cun_zai.h"
-#include "audio/zh/mei_dian_le.h"
-#include "audio/zh/hui_fu_chu_chang.h"
-// #include "audio/zh/jian_quan_shi_bai.h"
-// #include "audio/zh/pei_wang_xin_xi_yi_qing_chu.h"
-// #include "audio/zh/qing_lian_jie_fu_wu.h"
+// test...
+// #include "esp-ai-net.h"
 
-#define BLE_SERVICE_UUID "b09b32d2-1e07-45bb-9319-109d612dead9"
-#define BLE_CHARACTERISTIC_UUID "5c1e7878-e48e-4134-af2c-fd64d873125b"
+// 根据语种选择引用不同文件夹下的音频文件
+#if defined (ESP_AI_LANGUAGE_ZH)
+  // 中文音频文件引用（默认）
+  #pragma message "Compiling with Chinese audio files"
+  #include "audio/zh/lian_jie_shi_bai.h"
+  #include "audio/zh/lian_jie_zhong.h"
+  #include "audio/zh/pei_wang_cheng_gong.h"
+  #include "audio/zh/qing_pei_wang.h"
+  #include "audio/zh/san_ci.h"
+  #include "audio/zh/fu_wu_lian_jie_zhong.h"
+  #include "audio/zh/yu_e_bu_zuo.h"
+  #include "audio/zh/chao_ti_wei_qi_yong.h"
+  #include "audio/zh/e_du_ka_bu_cun_zai.h"
+  #include "audio/zh/mei_dian_le.h"
+  #include "audio/zh/du.h"
+  #include "audio/zh/jian_quan_shi_bai.h"
+  #include "audio/zh/she_bei_wei_bang_ding.h"
+  #include "audio/zh/wei_xin_pei_wang.h"
+  #include "audio/zh/tts_error.h"
+#elif defined (ESP_AI_LANGUAGE_EN)
+//   // 英文音频文件引用
+  #pragma message "Compiling with English audio files"
+  #include "audio/en/lian_jie_shi_bai.h"
+  #include "audio/en/lian_jie_zhong.h"
+  #include "audio/en/pei_wang_cheng_gong.h"
+  #include "audio/en/qing_pei_wang.h"
+  #include "audio/en/jian_quan_shi_bai.h"
+  #include "audio/en/mei_dian_le.h"
+  #include "audio/en/yu_e_bu_zuo.h"
+  #include "audio/en/chao_ti_wei_qi_yong.h"
+  #include "audio/en/e_du_ka_bu_cun_zai.h"
+  #include "audio/en/wei_xin_pei_wang_mp3.h"
+  #include "audio/en/tts_error_mp3.h"
+  #include "audio/en/she_bei_wei_bang_ding_mp3.h"
+  #include "audio/en/du.h"
 
-  
-extern String SID_TONE;
-extern String SID_CONNECTED_SERVER;
-extern String SID_TONE_CACHE;
-extern String SID_WAKEUP_REP_CACHE;
-extern String SID_SLEEP_REP_CACHE;
-extern String SID_TTS_END_RESTART;
-extern String SID_TTS_END;
-extern String SID_TTS_CHUNK_END;
-extern String SID_TTS_FN;
-extern String SID_SESSION;
-
-
-
-// 使用软串口 TX=11，R=12
-#ifndef esp_ai_serial_tx
-#if defined(ARDUINO_XIAO_ESP32S3)
-#define esp_ai_serial_tx 43
-#else
-#define esp_ai_serial_tx 11
-#endif
-#endif
-
-#ifndef esp_ai_serial_rx
-#if defined(ARDUINO_XIAO_ESP32S3)
-#define esp_ai_serial_rx 44
-#else
-#define esp_ai_serial_rx 12
-#endif
+#elif defined (ESP_AI_LANGUAGE_JA)
+  // 日语音频文件引用（预留位置，待添加）
+  // #include "audio/ja/lian_jie_shi_bai.h"
+  // #include "audio/ja/lian_jie_zhong.h"
+  // ... 其他日语音频文件
 #endif
 
-#define MIC_i2s_num I2S_NUM_1
-#define YSQ_i2s_num I2S_NUM_0
 
-extern WiFiMulti wifiMulti;
+#if !defined(LITTLE_ROM)
+// extern WiFiMulti wifiMulti;
+#endif
+
+
+// test...
+// extern ESP_AI_NET EAN;
+
 extern HardwareSerial Esp_ai_serial;
 extern Preferences esi_ai_prefs;
 
@@ -153,7 +153,6 @@ struct ESP_AI_i2s_config_speaker
  * 本配置需要调整为宏定义, 下版本处理...
  *
  * 语音唤醒方案：
- * edge_impulse：内置语音唤醒方案 (esp32S3板子支持)
  *       asrpro：天问语音模块唤醒
  *     pin_high：引脚高电平唤醒
  *      pin_low：引脚低电平唤醒
@@ -162,7 +161,6 @@ struct ESP_AI_i2s_config_speaker
  *       serial：串口字符唤醒
  *       custom：自定义，自行调用 esp_ai.wakeUp() 唤醒
  */
-// #define ESP_AI_WAKEUP_SCHEME "edge_impulse"
 
 struct ESP_AI_wake_up_config
 {
@@ -196,7 +194,9 @@ struct ESP_AI_wifi_config
     // 热点名字
     char ap_name[30];
     // 自定义配网页面
-    String html_str;
+    // String html_str;
+    const char *html_str; // 改为指针
+
     // 配网方式 AP | BLE
     String way;
 };
@@ -228,6 +228,8 @@ struct ESP_AI_lights_config
 {
     // IO口
     int pin;
+    // 灯珠数量
+    int count;
 };
 
 struct ESP_AI_CONFIG
@@ -254,13 +256,22 @@ struct ESP_AI_CONFIG
 
 extern String esp_ai_net_status;
 extern String ap_connect_err;
-
+ 
 extern WebSocketsClient esp_ai_webSocket;
 extern WebServer esp_ai_server;
+#if !defined(DISABLE_AP_NET)
 extern DNSServer esp_ai_dns_server;
+#endif
 
 extern bool spk_ing;
 extern SemaphoreHandle_t audio_mutex;
+
+#define NOISE_THRESHOLD 200      // 噪声阈值
+#define NOISE_REDUCTION_FACTOR 0.5 // 噪声降低因子
+#define DYNAMIC_GAIN_TARGET 8000  // 目标信号强度
+#define MAX_GAIN 4.0             // 最大增益倍数
+#define MIN_GAIN 0.5             // 最小增益倍数
+
 
 class BufferPrint : public Print
 {
@@ -281,22 +292,32 @@ public:
     virtual size_t write(const uint8_t *buffer, size_t size) override
     {
         if (!spk_ing)
-            return 0; 
+            return 0;
         if (xSemaphoreTake(audio_mutex, pdMS_TO_TICKS(10)) == pdTRUE)
         {
+            // test
+            // Serial.print("实际写入 esp_ai_audio_buffer：");
+            // Serial.println(size);
+            // 这里要注意可能会导致锁无法释放的问题
             size_t result = _buffer.writeArray(buffer, size);
             xSemaphoreGive(audio_mutex);
             return result;
         }
         return 0;
     }
+    void reset()
+    {
+        _buffer.reset();
+    }
+    void setWriteMaxWait(TickType_t ticks)
+    {
+        _buffer.setWriteMaxWait(ticks);
+    }
 
 private:
     BufferRTOS<uint8_t> &_buffer;
 };
-constexpr size_t AUDIO_BUFFER_SIZE = 1024 * 20; // 缓冲区中的总字节数
-constexpr size_t AUDIO_CHUNK_SIZE = 1024;       // 理想的读/写块大小
-extern I2SStream esp_ai_spk_i2s;
+
 extern EncodedAudioStream esp_ai_dec;
 extern MP3DecoderHelix esp_ai_dec_mp3;
 extern VolumeStream esp_ai_volume;
@@ -304,6 +325,27 @@ extern StreamCopy esp_ai_copier;
 extern BufferPrint esp_ai_spk_buffer_print;
 extern BufferRTOS<uint8_t> esp_ai_audio_buffer;
 extern QueueStream<uint8_t> esp_ai_spk_queue;
+
+#if defined(CODEC_TYPE_ES8311_NS4150)
+extern AudioInfo esp_ai_audio_info;
+extern DriverPins esp_ai_audio_pins;
+extern AudioBoard esp_ai_audio_board;
+extern I2SCodecStream esp_ai_spk_i2s;
+extern I2SCodecStream esp_ai_i2s_input;
+#elif defined(CODEC_TYPE_ES8311_ES7210)
+extern AudioInfo esp_ai_audio_info;
+extern DriverPins esp_ai_audio_pins;
+extern AudioBoard esp_ai_audio_board;
+extern I2SCodecStream esp_ai_spk_i2s;
+
+extern AudioInfo esp_ai_mic_info;
+extern DriverPins esp_ai_mic_pins;
+extern AudioBoard esp_ai_mic_board;
+extern I2SCodecStream esp_ai_i2s_input;
+#else
+extern I2SStream esp_ai_spk_i2s;
+extern I2SStream esp_ai_i2s_input;
+#endif
 
 #define MIC_SAMPLE_BUFFER_SIZE 1024
 extern int mic_bits_per_sample;
@@ -351,7 +393,51 @@ public:
             }
             else
             {
+
+#if defined(CODEC_TYPE_ES8311_ES7210)
+                // 已经是 16/24/32bit 的情况
+                int samples_read = size / sizeof(int16_t); // 假设是 16bit
+                const int16_t *rawBuffer = reinterpret_cast<const int16_t *>(buffer);
+                int16_t processedBuffer[MIC_SAMPLE_BUFFER_SIZE];
+                // 应用降噪处理
+                for (size_t i = 0; i < std::min(samples_read, MIC_SAMPLE_BUFFER_SIZE); i++) 
+                // for (size_t i = 0; i <samples_read; i++)
+                {
+                    // 复制原始数据
+                    processedBuffer[i] = rawBuffer[i];
+                    // 如果信号小于噪声阈值，降低其强度
+                    if (abs(processedBuffer[i]) < NOISE_THRESHOLD) {
+                        processedBuffer[i] = (int16_t)(processedBuffer[i] * NOISE_REDUCTION_FACTOR);
+                    }
+                }
+                int16_t maxAmplitude = 0;
+                for (size_t i = 0; i < samples_read; i++) {
+                    int16_t absValue = abs(processedBuffer[i]);
+                    if (absValue > maxAmplitude) {
+                    maxAmplitude = absValue;
+                    }
+                }
+                // // 应用动态增益
+                if (maxAmplitude != 0)
+                {
+                // 计算所需增益因子
+                float gainFactor = (float)DYNAMIC_GAIN_TARGET / maxAmplitude;
+                // 限制增益范围
+                if (gainFactor > MAX_GAIN) gainFactor = MAX_GAIN;
+                if (gainFactor < MIN_GAIN) gainFactor = MIN_GAIN;
+                // 应用增益
+                for (size_t i = 0; i < samples_read; i++) {
+                    // 应用增益并防止溢出
+                    int32_t temp = (int32_t)(processedBuffer[i] * gainFactor);
+                    if (temp > 32767) temp = 32767;
+                    else if (temp < -32768) temp = -32768;
+                    processedBuffer[i] = (int16_t)temp;
+                }
+                    }
+                esp_ai_webSocket.sendBIN((uint8_t *)processedBuffer, samples_read * sizeof(int16_t));
+#else
                 esp_ai_webSocket.sendBIN(buffer, size);
+#endif
             }
 
             xSemaphoreGive(esp_ai_ws_mutex);
@@ -363,15 +449,12 @@ public:
 };
 
 extern WebsocketStream ws_stream;
-extern I2SStream esp_ai_i2s_input;
 extern VolumeStream esp_ai_mic_volume;
 extern StreamCopy mic_to_ws_copier;
 
-#define ESP_AI_ASR_SAMPLE_BUFFER_SIZE 16000
 extern int16_t *esp_ai_asr_sample_buffer;
 
-extern String ESP_AI_VERSION;
-extern String esp_ai_start_ed;
+extern bool esp_ai_start_ed;
 extern bool esp_ai_ws_connected;
 extern String esp_ai_session_id;
 extern String esp_ai_session_status;
@@ -379,7 +462,7 @@ extern String esp_ai_tts_task_id;
 extern String esp_ai_status;
 extern bool esp_ai_sleep;
 extern bool asr_ing;
-extern String esp_ai_prev_session_id;
+extern int I2S_model;
 
 // 聆听模式
 extern bool esp_ai_is_listen_model;
@@ -389,13 +472,10 @@ extern bool esp_ai_played_connected;
 extern bool esp_ai_start_send_audio;
 
 // 音频缓存
+#if !defined(LITTLE_ROM)
 extern std::vector<uint8_t> esp_ai_cache_audio_du;
-extern std::vector<uint8_t> esp_ai_cache_audio_greetings; 
-
-extern long last_silence_time;
-extern long last_not_silence_time;
-extern long last_silence_time_wakeup;
-extern long last_not_silence_time_wekeup;
+extern std::vector<uint8_t> esp_ai_cache_audio_greetings;
+#endif
 
 // 麦克风默认配置 { bck_io_num, ws_io_num, data_in_num }
 extern ESP_AI_i2s_config_mic default_i2s_config_mic;
@@ -413,40 +493,9 @@ extern ESP_AI_volume_config default_volume_config;
 extern ESP_AI_reset_btn_config default_reset_btn_config;
 extern ESP_AI_lights_config default_lights_config;
 
-extern Adafruit_NeoPixel esp_ai_pixels;
-
-#define DEBUG_PRINT(debug, x) \
-    if (debug)                \
-    {                         \
-        Serial.print(x);      \
-    }
-#define DEBUG_PRINTLN(debug, x) \
-    if (debug)                  \
-    {                           \
-        Serial.println(x);      \
-    }
-
-#define DEBUG_PRINTF(fmt, ...) printf_P(PSTR("[%s][%d]:" fmt "\r\n"), __func__, __LINE__, ##__VA_ARGS__);
-
-/** Audio buffers, pointers and selectors */
-typedef struct
-{
-    signed short *buffers[2];
-    unsigned char buf_select;
-    unsigned char buf_ready;
-    unsigned int buf_count;
-    unsigned int n_samples;
-} inference_t;
-
-extern inference_t inference;
-extern bool debug_nn; // Set this to true to see e.g. features generated from the raw signal
-extern bool esp_ai_wakeup_record_status;
-constexpr uint32_t mic_sample_buffer_size = 1024 * 3;
-extern int16_t *mic_sample_buffer;
+extern Adafruit_NeoPixel *esp_ai_pixels;
 
 extern String wake_up_scheme;
-
-String generateUUID();
 
 /**
  * 处理本地数据存储问题
@@ -498,8 +547,34 @@ String get_ap_name(String ap_name);
 extern String ESP_AI_BLE_RD;
 extern String ESP_AI_BLE_ERR;
 
+extern NimBLEServer *esp_ai_ble_server;
+extern NimBLECharacteristic *esp_ai_ble_characteristic;
+extern NimBLEService *esp_ai_ble_service;
+extern NimBLEAdvertising *esp_ai_ble_advertising;
 
-extern BLEServer *esp_ai_ble_server;
-extern BLECharacteristic *esp_ai_ble_characteristic;
-extern BLEService *esp_ai_ble_service;
-extern BLEAdvertising *esp_ai_ble_advertising;
+extern void open_spk();
+extern void open_mic();
+
+extern void handel_error(const String &code);
+
+// 倒计时和闹钟
+extern String clock_text_1;
+extern CronId clock_id_1;
+extern void clock_task_1();
+
+extern String clock_text_2;
+extern CronId clock_id_2;
+extern void clock_task_2();
+
+extern String clock_text_3;
+extern CronId clock_id_3;
+extern void clock_task_3();
+
+extern String timer_text_1;
+extern CronId timer_id_1;
+extern void timer_task_1();
+extern void timer_task_1_loop();
+
+void set_clock(const String &api_key, const String &text, const String &cron, const String &type, const String &action);
+
+extern void full_fake_bytes();

@@ -34,10 +34,12 @@ Face::Face(uint8_t eye_size, const String &screenType, uint8_t clock, uint8_t da
 	screenType_ = screenType;
 #if SCREEN_TYPE == 1
 	if (screenType == "091")
-		u8g2 = new U8G2_SSD1306_128X32_UNIVISION_F_SW_I2C(rotation == 0 ? U8G2_R0 : U8G2_R2, /* clock=*/clock, /* data= */ data, /* reset=*/U8X8_PIN_NONE); 
+		u8g2 = new U8G2_SSD1306_128X32_UNIVISION_F_SW_I2C(rotation == 0 ? U8G2_R0 : U8G2_R2, /* clock=*/clock, /* data= */ data, /* reset=*/U8X8_PIN_NONE);
 	else
 		u8g2 = new U8G2_SSD1306_128X64_NONAME_F_HW_I2C(rotation == 0 ? U8G2_R0 : U8G2_R2, /* reset=*/U8X8_PIN_NONE, /* clock=*/clock, /* data= */ data);
+
 	u8g2->begin();
+
 	// 必须启用，否则乱码
 	u8g2->enableUTF8Print();
 
@@ -64,7 +66,9 @@ Face::Face(uint8_t eye_size, const String &screenType, uint8_t clock, uint8_t da
 		LeftEye.CenterX = width_ / 2;
 		LeftEye.CenterY = height_ / 2;
 		Expression.SetFaceSize(eye_size, 50);
-	}else if(screenType == "240*240"){   
+	}
+	else if (screenType == "240*240")
+	{
 		LeftEye.CenterX = width_ * 3 / 10;
 		LeftEye.CenterY = height_ * 5 / 9;
 		Expression.SetFaceSize(8, 8);
@@ -142,7 +146,7 @@ static void DrawNotification(const String &notification, uint16_t txt_color, int
 	if (only_show_notification_ == true)
 	{
 		// 居中显示
-		u8g2->setCursor((width - calculateTextWidth(notification)) / 2, height / 2); 
+		u8g2->setCursor((width - calculateTextWidth(notification)) / 2, height / 2);
 	}
 	else
 	{
@@ -222,20 +226,33 @@ void Face::SetChatMessage(String Message)
 {
 	Message.trim();			   // 消除非可见字符
 	Message.replace("\n", ""); // 去掉换行符
-	// 如果前面的还没显示完
-	if (width_ * 5 > calculateTextWidth(chat_message_))
-	{
-		chat_message_ = chat_message_ + "   " + Message; // 换行显示
-	}
-	else
-	{
-		chat_message_ = Message;
-	}
+
+	// test...
+	// // 如果前面的还没显示完
+	// if (width_ * 5 > calculateTextWidth(chat_message_))
+	// {
+	// 	chat_message_ = chat_message_ + "   " + Message; // 换行显示
+	// }
+	// else
+	// {
+	// 	chat_message_ = Message;
+	// }
+
+	chat_message_ = chat_message_ + Message;
+}
+
+void Face::ClearChatMessage()
+{
+	chat_message_ = "";
 }
 
 void Face::SetBatLevel(uint8_t level)
 {
 	bat_level_ = level;
+}
+void Face::SetBatHide()
+{
+	hide_bat_ = true;
 }
 
 void Face::SetVolume(uint8_t volume)
@@ -321,7 +338,7 @@ static void ShowWifiStatus(int width)
 		// 无状态
 		u8g2->drawGlyph(width - 28 * proportion, 10 * proportion, 57872 + 15);
 	}
-}
+} 
 
 static void ShowBatStatus(int width, uint8_t bat_level)
 {
@@ -329,16 +346,23 @@ static void ShowBatStatus(int width, uint8_t bat_level)
 	uint8_t proportion = 1;
 #else /******************else******************/
 	int8_t proportion = 2;
-#endif
-	u8g2->setFont(u8g2_font_siji_t_6x10);
-
+#endif 
+	u8g2->setFont(u8g2_font_siji_t_6x10); // 使用图标字体
+										  // Serial.print("bat_level: ");
+										  // Serial.println(bat_level);
 	if (0xFF == bat_level)
 	{
+		// 充电状态显示充电图标
 		u8g2->drawGlyph(width - 12 * proportion, 10 * proportion, 57904 + 9);
 	}
 	else
 	{
-		u8g2->drawGlyph(width - 12 * proportion, 10 * proportion, 57922 + map(bat_level, 0, 100, 0, 9));
+		// 将 0-100% 映射到 0-3 (4格)
+		int batteryLevel = map(bat_level, 0, 100, 0, 3); 
+
+		// 57922 是电池图标的基础 Unicode 点
+		// batteryLevel 决定显示几格电量 
+		u8g2->drawGlyph(width - 12 * proportion, 10 * proportion, 57691 + batteryLevel);
 	}
 }
 
@@ -388,7 +412,7 @@ void Face::Update()
 		DrawNotification(notification_message_, txt_color_, width_, height_, only_show_notification_);
 	}
 	else
-	{ 
+	{
 		if (height_ > 32)
 		{
 			// 绘制表情
@@ -408,8 +432,11 @@ void Face::Update()
 			// 绘制右上角wifi状态图标
 			ShowWifiStatus(width_);
 
-			// 绘制右上角电量图标
-			ShowBatStatus(width_, bat_level_);
+			if (!hide_bat_)
+			{
+				// 绘制右上角电量图标
+				ShowBatStatus(width_, bat_level_);
+			}
 
 			// 绘制右上角音量图标
 			ShowVolume(width_, volume_);

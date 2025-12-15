@@ -93,7 +93,7 @@ class BufferRTOS : public BaseBuffer<T> {
   }
 
   int writeArray(const T data[], int len) {
-    LOGD("%s: %d", LOG_METHOD, len);
+    LOGD("%s: %d", LOG_METHOD, len); 
     if (write_from_isr) {
       xHigherPriorityTaskWoken = pdFALSE;
       int result =

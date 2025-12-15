@@ -21,7 +21,7 @@
 // ==================== 控制引脚配置 ====================
 #define BOOT_BUTTON_PIN 0     // BOOT按钮引脚（用于恢复出厂设置）
 #define VOLUME_ADC_PIN  34    // 音量控制ADC输入引脚
-#define WS2812_PIN      12    // WS2812 RGB LED数据引脚
+#define WS2812_PIN      2    // WS2812 RGB LED数据引脚
 
 // ==================== I2S音频参数配置 ====================
 #define I2S_SAMPLE_RATE     44100                       // 采样率 (Hz)
@@ -74,7 +74,7 @@
 #define PCA9554_ADDR 0x38  // 7位 I2C 地址
 
 // 中断引脚配置
-#define INT_PIN 2          // INT 引脚 (GPIO2)
+#define INT_PIN 39          // INT 引脚 (GPIO2)
 
 
 #endif // USERCONFIG_H

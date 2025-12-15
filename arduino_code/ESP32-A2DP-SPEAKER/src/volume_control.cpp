@@ -36,12 +36,12 @@ void updateVolume() {
   
   lastVolumeCheck = currentTime;
   
-  // 读取ADC值
-  int adcValue = analogRead(VOLUME_ADC_PIN);
-
-  // 转换为0-1范围
-  float rawVolume = (float)adcValue / 4095.0;
-
+  // // 读取ADC值
+  // int adcValue = analogRead(VOLUME_ADC_PIN);
+  int adcValue = 1 ;
+  // // 转换为0-1范围
+  // float rawVolume = (float)adcValue / 4095.0;
+  float rawVolume = 1 ;
   // 量化为指定分辨率（默认0.05的分辨率）
   // 共21个档位：0, 0.05, 0.10, 0.15, 0.20, ..., 0.95, 1.00
   float quantizedVolume = round(rawVolume * VOLUME_QUANTIZE_STEPS) / VOLUME_QUANTIZE_STEPS;

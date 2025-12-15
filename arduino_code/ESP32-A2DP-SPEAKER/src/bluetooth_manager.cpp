@@ -18,6 +18,9 @@ static BluetoothA2DPSink a2dp_sink;
 static bool isConnected = false;
 static bool isPlaying = false;
 
+// 当前音量值 (0-127, A2DP标准范围)
+static uint8_t currentVolume = 100;  // 默认音量约78%
+
 /**
  * 初始化蓝牙A2DP接收器
  */
@@ -219,5 +222,44 @@ void previousTrack() {
   if (isConnected) {
     a2dp_sink.previous();
   }
+}
+
+/**
+ * 设置音量 (使用A2DP AVRCP协议)
+ */
+void setVolume(uint8_t volume) {
+  if (volume > 127) volume = 127;
+  currentVolume = volume;
+  a2dp_sink.set_volume(volume);
+  Serial.printf("A2DP音量设置: %d (%.0f%%)\n", volume, (float)volume / 127.0f * 100.0f);
+}
+
+/**
+ * 获取当前音量
+ */
+uint8_t getVolume() {
+  return currentVolume;
+}
+
+/**
+ * 增加音量
+ */
+void increaseVolume(uint8_t step) {
+  uint8_t newVolume = currentVolume + step;
+  if (newVolume > 127) newVolume = 127;
+  setVolume(newVolume);
+}
+
+/**
+ * 减少音量
+ */
+void decreaseVolume(uint8_t step) {
+  uint8_t newVolume;
+  if (currentVolume < step) {
+    newVolume = 0;
+  } else {
+    newVolume = currentVolume - step;
+  }
+  setVolume(newVolume);
 }
 

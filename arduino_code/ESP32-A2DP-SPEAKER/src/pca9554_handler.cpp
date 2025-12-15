@@ -1,8 +1,11 @@
 /**
  * PCA9554 IO扩展芯片处理模块实现
- * 
- * 负责PCA9554 IO变化检测和蓝牙播放控制
- * 
+ *
+ * 按钮逻辑：
+ * - IO1: 长按>=2秒增加音量(持续按住每500ms增加)，短按(200ms-2秒)上一曲
+ * - IO2: 按下播放/暂停（200ms防抖）
+ * - IO3: 长按>=2秒减少音量(持续按住每500ms减少)，短按(200ms-2秒)下一曲
+ *
  * @author ESP-AI Team
  * @date 2024
  */
@@ -16,74 +19,30 @@
 // PCA9554 对象
 static PCA9554 ioExpander(PCA9554_ADDR);
 
-// 上次的 IO 状态
-static uint8_t lastIOState = 0xFF;
+// ==================== 时间参数 ====================
+#define DEBOUNCE_TIME 100           // 防抖时间（毫秒）
+#define LONG_PRESS_TIME 1000        // 长按触发时间（毫秒）
+#define VOLUME_REPEAT_INTERVAL 500  // 音量重复调整间隔（毫秒）
+#define VOLUME_STEP 13              // 音量步进值（约10%）
+#define POLL_INTERVAL 20            // 轮询间隔（毫秒）
 
-// 中断标志
-static volatile bool interruptTriggered = false;
+// ==================== IO1按钮状态 ====================
+static bool io1Pressed = false;
+static unsigned long io1PressStartTime = 0;
+static unsigned long io1LastVolumeTime = 0;
+static bool io1VolumeActive = false;
 
-// 按钮防抖时间戳
-static unsigned long lastIO1Change = 0;
-static unsigned long lastIO2Change = 0;
-static unsigned long lastIO3Change = 0;
+// ==================== IO2按钮状态 ====================
+static unsigned long io2LastPressTime = 0;
 
-// 防抖延迟（毫秒）
-#define DEBOUNCE_DELAY 200
+// ==================== IO3按钮状态 ====================
+static bool io3Pressed = false;
+static unsigned long io3PressStartTime = 0;
+static unsigned long io3LastVolumeTime = 0;
+static bool io3VolumeActive = false;
 
-/**
- * 中断处理函数
- */
-void IRAM_ATTR handlePCA9554Interrupt() {
-  interruptTriggered = true;
-}
-
-/**
- * 处理IO变化
- */
-static void handleIOChange(uint8_t currentState) {
-  // 检查是否有变化
-  if (currentState == lastIOState) {
-    return;
-  }
-  
-  uint8_t changed = currentState ^ lastIOState;
-  unsigned long currentTime = millis();
-  
-  // 检查各个IO引脚的变化（检测下降沿 - 按钮按下）
-  for (int i = 1; i <= 3; i++) {
-    if ((changed >> i) & 1) {
-      bool newState = (currentState >> i) & 1;
-      
-      // 只处理下降沿（HIGH -> LOW，按钮按下）
-      if (!newState) {
-        switch (i) {
-          case 1: // IO1 - 上一曲
-            if (currentTime - lastIO1Change > DEBOUNCE_DELAY) {
-              previousTrack();
-              lastIO1Change = currentTime;
-            }
-            break;
-            
-          case 2: // IO2 - 暂停/播放
-            if (currentTime - lastIO2Change > DEBOUNCE_DELAY) {
-              togglePlayPause();
-              lastIO2Change = currentTime;
-            }
-            break;
-            
-          case 3: // IO3 - 下一曲
-            if (currentTime - lastIO3Change > DEBOUNCE_DELAY) {
-              nextTrack();
-              lastIO3Change = currentTime;
-            }
-            break;
-        }
-      }
-    }
-  }
-  
-  lastIOState = currentState;
-}
+// 上次轮询时间
+static unsigned long lastPollTime = 0;
 
 /**
  * 初始化PCA9554模块
@@ -91,46 +50,137 @@ static void handleIOChange(uint8_t currentState) {
 bool initPCA9554Handler() {
   // 初始化 I2C
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ);
-  
+
   // 配置 INT 引脚为输入
   pinMode(INT_PIN, INPUT_PULLUP);
-  
+
   // 初始化 PCA9554
   if (!ioExpander.begin()) {
     return false;
   }
-  
-  // 配置所有 IO 为输入 (0xFF = 所有位为 1 = 所有 IO 为输入)
+
+  // 配置所有 IO 为输入
   if (!ioExpander.portMode(0xFF)) {
     return false;
   }
-  
-  // 读取初始状态
-  uint8_t initialState = 0;
-  if (!ioExpander.digitalReadPort(initialState)) {
-    return false;
-  }
-  lastIOState = initialState;
-  
-  // 配置中断（下降沿触发）
-  attachInterrupt(digitalPinToInterrupt(INT_PIN), handlePCA9554Interrupt, FALLING);
-  
+
+  Serial.println("PCA9554初始化成功");
   return true;
 }
 
 /**
- * 更新PCA9554状态
+ * 更新PCA9554状态 - 使用轮询方式
  */
 void updatePCA9554() {
-  // 检查中断标志
-  if (interruptTriggered) {
-    interruptTriggered = false;
-    
-    // 读取当前 IO 状态
-    uint8_t currentState = 0;
-    if (ioExpander.digitalReadPort(currentState)) {
-      handleIOChange(currentState);
+  unsigned long currentTime = millis();
+
+  // 定期轮询IO状态
+  if (currentTime - lastPollTime < POLL_INTERVAL) {
+    return;
+  }
+  lastPollTime = currentTime;
+
+  // 读取当前IO状态
+  uint8_t ioState = 0;
+  if (!ioExpander.digitalReadPort(ioState)) {
+    return;
+  }
+
+  // 读取各按钮状态（LOW = 按下）
+  bool io1CurrentlyPressed = !((ioState >> 1) & 1);
+  bool io2CurrentlyPressed = !((ioState >> 2) & 1);
+  bool io3CurrentlyPressed = !((ioState >> 3) & 1);
+
+  // ==================== 处理IO1 ====================
+  if (io1CurrentlyPressed && !io1Pressed) {
+    // 按钮刚按下
+    io1Pressed = true;
+    io1PressStartTime = currentTime;
+    io1VolumeActive = false;
+    Serial.println("IO1: 按下");
+  }
+  else if (!io1CurrentlyPressed && io1Pressed) {
+    // 按钮释放
+    unsigned long pressDuration = currentTime - io1PressStartTime;
+    Serial.printf("IO1: 释放, 持续时间=%lums\n", pressDuration);
+
+    if (!io1VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
+      // 短按: 200ms <= 持续时间 < 2000ms，执行上一曲
+      Serial.println("IO1: 上一曲");
+      previousTrack();
+    }
+    io1Pressed = false;
+    io1VolumeActive = false;
+  }
+  else if (io1Pressed) {
+    // 按钮持续按下
+    unsigned long pressDuration = currentTime - io1PressStartTime;
+
+    if (pressDuration >= LONG_PRESS_TIME) {
+      if (!io1VolumeActive) {
+        // 首次触发长按
+        io1VolumeActive = true;
+        io1LastVolumeTime = currentTime;
+        Serial.println("IO1: 长按开始减少音量");
+        decreaseVolume(VOLUME_STEP);
+      }
+      else if (currentTime - io1LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
+        // 持续按住，每500ms增加一次
+        io1LastVolumeTime = currentTime;
+        Serial.println("IO1: 继续减少音量");
+        decreaseVolume(VOLUME_STEP);
+      }
+    }
+  }
+
+  // ==================== 处理IO2 ====================
+  if (io2CurrentlyPressed) {
+    if (currentTime - io2LastPressTime >= DEBOUNCE_TIME) {
+      Serial.println("IO2: 播放/暂停");
+      togglePlayPause();
+      io2LastPressTime = currentTime;
+    }
+  }
+
+  // ==================== 处理IO3 ====================
+  if (io3CurrentlyPressed && !io3Pressed) {
+    // 按钮刚按下
+    io3Pressed = true;
+    io3PressStartTime = currentTime;
+    io3VolumeActive = false;
+    Serial.println("IO3: 按下");
+  }
+  else if (!io3CurrentlyPressed && io3Pressed) {
+    // 按钮释放
+    unsigned long pressDuration = currentTime - io3PressStartTime;
+    Serial.printf("IO3: 释放, 持续时间=%lums\n", pressDuration);
+
+    if (!io3VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
+      // 短按: 200ms <= 持续时间 < 2000ms，执行下一曲
+      Serial.println("IO3: 下一曲");
+      nextTrack();
+    }
+    io3Pressed = false;
+    io3VolumeActive = false;
+  }
+  else if (io3Pressed) {
+    // 按钮持续按下
+    unsigned long pressDuration = currentTime - io3PressStartTime;
+
+    if (pressDuration >= LONG_PRESS_TIME) {
+      if (!io3VolumeActive) {
+        // 首次触发长按
+        io3VolumeActive = true;
+        io3LastVolumeTime = currentTime;
+        Serial.println("IO3: 长按开始增加音量");
+        increaseVolume(VOLUME_STEP);
+      }
+      else if (currentTime - io3LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
+        // 持续按住，每500ms减少一次
+        io3LastVolumeTime = currentTime;
+        Serial.println("IO3: 继续增加音量");
+        increaseVolume(VOLUME_STEP);
+      }
     }
   }
 }
-

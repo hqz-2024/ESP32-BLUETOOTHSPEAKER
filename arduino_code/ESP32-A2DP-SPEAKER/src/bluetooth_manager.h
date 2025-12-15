@@ -87,5 +87,33 @@ void nextTrack();
  */
 void previousTrack();
 
+/**
+ * 设置音量 (使用A2DP AVRCP协议)
+ *
+ * @param volume 音量值 (0-127)
+ */
+void setVolume(uint8_t volume);
+
+/**
+ * 获取当前音量
+ *
+ * @return 音量值 (0-127)
+ */
+uint8_t getVolume();
+
+/**
+ * 增加音量
+ *
+ * @param step 增加的步进值 (默认约10%)
+ */
+void increaseVolume(uint8_t step = 13);
+
+/**
+ * 减少音量
+ *
+ * @param step 减少的步进值 (默认约10%)
+ */
+void decreaseVolume(uint8_t step = 13);
+
 #endif // BLUETOOTH_MANAGER_H
 

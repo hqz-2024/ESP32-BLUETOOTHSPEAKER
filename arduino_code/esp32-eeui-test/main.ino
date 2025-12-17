@@ -27,22 +27,22 @@
  * 图片压缩处理：https://ezgif.com/optimize/
  * GIFu图制作：https://ezgif.com/maker
  */
-#include "emos/wx_qrcode.h"
-#include "emos/ap_qrcode.h"
-#include "emos/wifi.h"
-#include "emos/error.h"
-#include "emos/listen.h"
-#include "emos/sleep.h"
-#include "emos/music.h"
-#include "emos/tts_ing.h"
-#include "emos/happy.h"
-#include "emos/sad.h"
-#include "emos/angry.h"
-#include "emos/accident.h"
-#include "emos/no.h"
+// #include "emos/wx_qrcode.h"
+// #include "emos/ap_qrcode.h"
+// #include "emos/wifi.h"
+// #include "emos/error.h"
+// #include "emos/listen.h"
+// #include "emos/sleep.h"
+// #include "emos/music.h"
+// #include "emos/tts_ing.h"
+// #include "emos/happy.h"
+// #include "emos/sad.h"
+// #include "emos/angry.h"
+// #include "emos/accident.h"
+// #include "emos/no.h"
 
 // ESP-AI-V3 开发板
-#define SCREEN_WIDTH 240
+#define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 #define SCREEN_PAD_LEFT 8
 #define SCREEN_PAD_RIGHT 8
@@ -65,33 +65,33 @@ EEUI eeui;
 /**
  * 定义一个情感与图片 URL 的映射数组
  */
-const EEUIEmotionImagePair emotions[] = {
-    // 状态动画
-    {"联网中", &wifi_img},
-    {"请配网", &wx_qrcode_img}, // 小程序配网时，会自动在屏幕上显示二维码，微信扫码即可跳转配网
-    // {"请配网", &ap_qrcode_img}, // ap配网时，会自动在屏幕上显示二维码，微信扫码即可跳转配网
-    {"发生错误", &error_img},
-    {"聆听中", &listen_img},
-    {"休息中", &sleep_img},
-    {"唱歌中", &music_img},
+// const EEUIEmotionImagePair emotions[] = {
+//     // 状态动画
+//     {"联网中", &wifi_img},
+//     {"请配网", &wx_qrcode_img}, // 小程序配网时，会自动在屏幕上显示二维码，微信扫码即可跳转配网
+//     // {"请配网", &ap_qrcode_img}, // ap配网时，会自动在屏幕上显示二维码，微信扫码即可跳转配网
+//     {"发生错误", &error_img},
+//     {"聆听中", &listen_img},
+//     {"休息中", &sleep_img},
+//     {"唱歌中", &music_img},
 
-    // 聊天表情动画(最好是说话的动作+表情)
-    {"无情绪", &tts_ing_img}, // 这个表情必须配置
-    {"快乐", &happy_img},
-    {"伤心", &sad_img},
-    {"愤怒", &angry_img},
-    {"意外", &accident_img},
-    {"否定", &no_img},
+//     // 聊天表情动画(最好是说话的动作+表情)
+//     {"无情绪", &tts_ing_img}, // 这个表情必须配置
+//     {"快乐", &happy_img},
+//     {"伤心", &sad_img},
+//     {"愤怒", &angry_img},
+//     {"意外", &accident_img},
+//     {"否定", &no_img},
 
-    // {"肯定", &kuai_le},
-    // {"专注", &kuai_le},
-    // {"发愁", &kuai_le},
-    // {"懊恼", &kuai_le},
-    // {"困倦", &kuai_le},
-    // {"疑问", &kuai_le},
-    // {"恐惧", &kuai_le},
-    // {"敬畏", &kuai_le},
-};
+//     // {"肯定", &kuai_le},
+//     // {"专注", &kuai_le},
+//     // {"发愁", &kuai_le},
+//     // {"懊恼", &kuai_le},
+//     // {"困倦", &kuai_le},
+//     // {"疑问", &kuai_le},
+//     // {"恐惧", &kuai_le},
+//     // {"敬畏", &kuai_le},
+// };
 
 // String sentence = "";
 void setup()
@@ -101,9 +101,9 @@ void setup()
   delay(2000);
   // 初始化 屏幕
   tft.begin();
-  tft.setRotation(3); // 设置屏幕方向 V4 开发板
+  tft.setRotation(1); // 设置屏幕方向 V4 开发板
   // tft.setRotation(1); // 设置屏幕方向  V3 开发板
-  eeui.begin(&tft, emotions, sizeof(emotions) / sizeof(emotions[0]), SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
+  eeui.begin(&tft, nullptr , 0 , SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
   // eeui.set_screen_circle();
 
   // eeui.render_gif_by_name("休息中");
@@ -240,11 +240,11 @@ void setup()
   // }
 
   // doro 对话
-  eeui.set_bottom_scrolling_text("人，你知道吗？");
-  vTaskDelay(1500 / portTICK_PERIOD_MS);
-  eeui.set_bottom_scrolling_text("我给你偷了好多好多的偶润结，快来吃吧！");
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
-  eeui.set_bottom_scrolling_text("doro 好开心呀！");
+  // eeui.set_bottom_scrolling_text("人，你知道吗？");
+  // vTaskDelay(1500 / portTICK_PERIOD_MS);
+  // eeui.set_bottom_scrolling_text("我给你偷了好多好多的偶润结，快来吃吧！");
+  // vTaskDelay(2000 / portTICK_PERIOD_MS);
+  // eeui.set_bottom_scrolling_text("doro 好开心呀！");
 
   // eeui.render_gif_by_name(emotions[0].image);
   // vTaskDelay(1000 / portTICK_PERIOD_MS); // 等待屏幕稳定
@@ -269,6 +269,12 @@ void loop()
     // printf("LVGL memory: total_size: %d, free_size: %d, max_used: %d\n",
     //        (int)mon.total_size, (int)mon.free_size, (int)mon.max_used);
   }
+
+  eeui.set_bottom_scrolling_text("人，你知道吗？");
+  vTaskDelay(1500 / portTICK_PERIOD_MS);
+  eeui.set_bottom_scrolling_text("我给你偷了好多好多的偶润结，快来吃吧！");
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  eeui.set_bottom_scrolling_text("doro 好开心呀！");
 
   // eeui.render_gif_by_name("发生错误");
   // // eeui.set_bottom_scrolling_text("我给你偷了好多好多的橘子，快来吃吧！");

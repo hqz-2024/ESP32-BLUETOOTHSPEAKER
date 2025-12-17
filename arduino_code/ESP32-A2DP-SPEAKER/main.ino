@@ -51,6 +51,13 @@
  */
 
 // 包含所有功能模块
+
+#include <Arduino.h>
+#include "eeui.h"
+#include <WiFi.h>
+#include <map>
+#include <vector>
+
 #include "userconfig.h"
 #include "src/audio_i2s.h"
 #include "src/bluetooth_manager.h"
@@ -59,6 +66,11 @@
 #include "src/button_handler.h"
 #include "src/config_manager.h"
 #include "src/pca9554_handler.h"
+
+
+
+TFT_eSPI tft = TFT_eSPI();
+EEUI eeui;
 
 // ==================== 初始化函数 ====================
 void setup() {
@@ -79,6 +91,16 @@ void setup() {
 
 
   setI2Smute(false);       //配置完成取消静音
+
+
+  tft.begin();
+  tft.setRotation(1); // 设置屏幕方向 V4 开发板
+  eeui.begin(&tft, nullptr , 0 , SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
+  eeui.render_volume(1);
+  eeui.recharge(true);
+  eeui.render_battery(100);
+  // eeui.render_gif_by_name(emotions[0].image);
+
 
   // 设置A2DP音频数据回调
   getA2DPSink()->set_stream_reader(read_data_stream, false);

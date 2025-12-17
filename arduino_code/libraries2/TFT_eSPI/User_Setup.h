@@ -197,10 +197,10 @@
 
 // // // ============= esp-ai v3/v4 =============
 // // // For NodeMCU - use pin numbers in the form PIN_Dx where Dx is the NodeMCU pin designation
-#define TFT_MOSI 39 // Automatically assigned with ESP8266 if not defined
-#define TFT_SCLK 38 // Automatically assigned with ESP8266 if not defined
-#define TFT_CS 9    // Chip select control pin D8
-#define TFT_DC 13   // Data Command control pin
+// #define TFT_MOSI 39 // Automatically assigned with ESP8266 if not defined
+// #define TFT_SCLK 38 // Automatically assigned with ESP8266 if not defined
+// #define TFT_CS 9    // Chip select control pin D8
+// #define TFT_DC 13   // Data Command control pin
 
 // ==================== 双目 LCD S3 测试 / esp-ai-mini 开发板接TFT  ====================
 // 如果使用的是屏幕模组,需要将背光接到 3v3, RST 也接到 3v3
@@ -234,6 +234,16 @@
 // #define TFT_RST      18   // Reset pin (could connect to NodeMCU RST, see next line)
 // #define TFT_CS       14   // Chip select control pin D8
 // #define TFT_BL       13   // LED back-light
+
+// ============= ESP-AI-SPEAKER  =============
+#define TFT_MOSI     19   // LCD_SDA   Automatically assigned with ESP8266 if not defined
+#define TFT_SCLK     18    // LCD_SCK   Automatically assigned with ESP8266 if not defined
+
+#define TFT_DC       17   //  Data Command control pin
+// #define TFT_RST      -1   // Reset pin (could connect to NodeMCU RST, see next line)
+#define TFT_CS       5   // Chip select control pin D8
+#define TFT_BL       13   // LED back-light
+#define TFT_BACKLIGHT_ON LOW
 
 // // ============= 马壮壮小智  =============
 // #define TFT_MOSI     47    // LCD_SDA   Automatically assigned with ESP8266 if not defined

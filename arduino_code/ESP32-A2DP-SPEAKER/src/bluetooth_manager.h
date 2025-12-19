@@ -115,5 +115,32 @@ void increaseVolume(uint8_t step = 13);
  */
 void decreaseVolume(uint8_t step = 13);
 
-#endif // BLUETOOTH_MANAGER_H
+/**
+ * 设置元数据更新回调函数
+ *
+ * @param callback 回调函数指针，参数为 (title, artist, album)
+ */
+void setMetadataCallback(void (*callback)(const char*, const char*, const char*));
 
+/**
+ * 获取当前歌曲标题
+ *
+ * @return 歌曲标题字符串
+ */
+String getCurrentTitle();
+
+/**
+ * 获取当前艺术家
+ *
+ * @return 艺术家名称字符串
+ */
+String getCurrentArtist();
+
+/**
+ * 获取当前专辑
+ *
+ * @return 专辑名称字符串
+ */
+String getCurrentAlbum();
+
+#endif // BLUETOOTH_MANAGER_H

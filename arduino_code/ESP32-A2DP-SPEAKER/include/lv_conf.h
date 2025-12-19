@@ -6,9 +6,11 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
+
 /*====================
    Graphical settings
  *====================*/
+
 
 #define LV_HOR_RES_MAX          (240)
 #define LV_VER_RES_MAX          (240) 
@@ -16,6 +18,7 @@
 #define LV_COLOR_16_SWAP        0
 #define LV_COLOR_SCREEN_TRANSP  0
 #define LV_USE_GIF 1
+
 
 
 /*====================

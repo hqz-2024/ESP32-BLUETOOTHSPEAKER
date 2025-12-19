@@ -66,11 +66,26 @@
 #include "src/button_handler.h"
 #include "src/config_manager.h"
 #include "src/pca9554_handler.h"
-
-
+#include "src/album_cover_manager.h"
 
 TFT_eSPI tft = TFT_eSPI();
 EEUI eeui;
+
+// ==================== 元数据回调函数 ====================
+/**
+ * AVRC元数据更新回调
+ * 当接收到新的歌曲信息时调用
+ */
+void onMetadataUpdate(const char* title, const char* artist, const char* album) {
+  Serial.println("========== 歌曲信息更新 ==========");
+  Serial.printf("标题: %s\n", title);
+  Serial.printf("艺术家: %s\n", artist);
+  Serial.printf("专辑: %s\n", album);
+  Serial.println("=================================");
+
+  // 更新屏幕显示
+  eeui.render_song_info(title, artist);
+}
 
 // ==================== 初始化函数 ====================
 void setup() {
@@ -89,17 +104,29 @@ void setup() {
   // 初始化蓝牙A2DP（会自动配置I2S）
   initBluetooth(BT_DEVICE_NAME);
 
+  // 设置元数据回调函数
+  setMetadataCallback(onMetadataUpdate);
 
   setI2Smute(false);       //配置完成取消静音
 
-
+  // 初始化屏幕
   tft.begin();
-  tft.setRotation(1); // 设置屏幕方向 V4 开发板
+  tft.setRotation(4); // 设置屏幕方向 V4 开发板
   eeui.begin(&tft, nullptr , 0 , SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
+
+  // 初始化专辑封面管理器
+  initAlbumCoverManager();
+
+  // 初始化UI显示
   eeui.render_volume(1);
   eeui.recharge(true);
   eeui.render_battery(100);
-  // eeui.render_gif_by_name(emotions[0].image);
+  eeui.render_play_icon(false);      // 初始显示播放图标（暂停状态）
+  eeui.render_bluetooth_icon(false); // 初始显示蓝牙图标（未连接）
+  eeui.render_song_info("等待连接...", nullptr); // 初始提示信息
+
+  // 显示圆形旋转专辑封面（使用默认封面，初始不旋转）
+  eeui.render_rotating_image(getDefaultAlbumCover(), false);
 
 
   // 设置A2DP音频数据回调
@@ -133,6 +160,33 @@ void loop() {
   // 更新PCA9554状态
   updatePCA9554();
 
+  // 更新屏幕UI状态
+  static bool lastConnectedState = false;
+  static bool lastPlayingState = false;
+
+  bool currentConnected = isBluetoothConnected();
+  bool currentPlaying = isAudioPlaying();
+
+  // 蓝牙连接状态变化
+  if (currentConnected != lastConnectedState) {
+    eeui.render_bluetooth_icon(currentConnected);
+    if (currentConnected) {
+      Serial.println("UI: 蓝牙已连接");
+    } else {
+      Serial.println("UI: 蓝牙已断开");
+      eeui.render_song_info("等待连接...", nullptr);
+    }
+    lastConnectedState = currentConnected;
+  }
+
+  // 播放状态变化
+  if (currentPlaying != lastPlayingState) {
+    eeui.render_play_icon(currentPlaying);
+    eeui.update_rotation_state(currentPlaying); // 更新旋转状态
+    Serial.printf("UI: 播放状态 - %s\n", currentPlaying ? "播放中" : "已暂停");
+    lastPlayingState = currentPlaying;
+  }
+
   // 定期打印状态信息
   static unsigned long lastStatusPrint = 0;
   unsigned long currentTime = millis();
@@ -143,6 +197,14 @@ void loop() {
                   isAudioPlaying() ? "播放中" : "暂停",
                   getCurrentVolume(),
                   conn_state == ESP_A2D_CONNECTION_STATE_CONNECTING ? "重连中" : "空闲");
+
+    // 打印当前歌曲信息
+    String title = getCurrentTitle();
+    String artist = getCurrentArtist();
+    if (title.length() > 0) {
+      Serial.printf("当前歌曲: %s - %s\n", title.c_str(), artist.c_str());
+    }
+
     lastStatusPrint = currentTime;
   }
 

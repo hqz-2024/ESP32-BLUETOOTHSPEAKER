@@ -160,6 +160,48 @@ void set_status_text_positioned(const char *text, bool need_ani = true, const ch
      */
     void hide_clock();
 
+    /**
+     * 渲染播放/暂停图标
+     * @param is_playing true=播放中(显示暂停图标), false=暂停(显示播放图标)
+     */
+    void render_play_icon(bool is_playing);
+
+    /**
+     * 渲染蓝牙连接图标
+     * @param is_connected true=已连接, false=未连接
+     */
+    void render_bluetooth_icon(bool is_connected);
+
+    /**
+     * 显示歌曲信息（屏幕中央）
+     * @param title 歌曲标题
+     * @param artist 艺术家名称（可选）
+     */
+    void render_song_info(const char *title, const char *artist = nullptr);
+
+    /**
+     * 隐藏歌曲信息
+     */
+    void hide_song_info();
+
+    /**
+     * 渲染圆形旋转图片（专辑封面）
+     * @param image 图片数据指针
+     * @param is_playing 是否正在播放（控制旋转）
+     */
+    void render_rotating_image(const lv_img_dsc_t *image, bool is_playing);
+
+    /**
+     * 隐藏圆形旋转图片
+     */
+    void hide_rotating_image();
+
+    /**
+     * 更新旋转状态（播放/暂停）
+     * @param is_playing 是否正在播放
+     */
+    void update_rotation_state(bool is_playing);
+
 private:
     TFT_eSPI *tft;
     int screen_width = 240;
@@ -304,4 +346,35 @@ private:
     lv_obj_t *ota_label;
 
     void render_loading_todo();
+
+    // 播放图标相关
+    int play_icon_width = 20;
+    int play_icon_height = 20;
+    lv_color_t *play_icon_cbuf = nullptr;
+    lv_obj_t *play_icon_canvas = nullptr;
+    void render_play_icon_todo(bool is_playing);
+
+    // 蓝牙图标相关
+    int bt_icon_width = 20;
+    int bt_icon_height = 20;
+    lv_color_t *bt_icon_cbuf = nullptr;
+    lv_obj_t *bt_icon_canvas = nullptr;
+    void render_bluetooth_icon_todo(bool is_connected);
+
+    // 歌曲信息相关
+    lv_obj_t *song_title_label = nullptr;
+    lv_obj_t *song_artist_label = nullptr;
+    lv_style_t song_title_style;
+    lv_style_t song_artist_style;
+    void render_song_info_todo(const char *title, const char *artist);
+
+    // 圆形旋转图片相关
+    lv_obj_t *rotating_image = nullptr;      // 旋转图片对象
+    lv_anim_t rotation_anim;                 // 旋转动画对象
+    bool is_rotation_active = false;         // 旋转是否激活
+    int rotating_image_size = 160;           // 图片尺寸
+    void render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing);
+    void hide_rotating_image_todo();
+    void update_rotation_state_todo(bool is_playing);
+    static void rotation_anim_cb(void *var, int32_t value); // 旋转动画回调
 };

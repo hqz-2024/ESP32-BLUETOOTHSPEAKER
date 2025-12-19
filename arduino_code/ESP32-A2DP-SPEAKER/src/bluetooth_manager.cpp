@@ -1,8 +1,8 @@
 /**
  * 蓝牙管理模块实现
- * 
+ *
  * 负责蓝牙A2DP连接管理和状态回调
- * 
+ *
  * @author ESP-AI Team
  * @date 2024
  */
@@ -20,6 +20,14 @@ static bool isPlaying = false;
 
 // 当前音量值 (0-127, A2DP标准范围)
 static uint8_t currentVolume = 100;  // 默认音量约78%
+
+// AVRC 元数据信息
+static String currentTitle = "";
+static String currentArtist = "";
+static String currentAlbum = "";
+
+// 元数据更新回调函数指针
+static void (*metadata_callback)(const char* title, const char* artist, const char* album) = nullptr;
 
 /**
  * 初始化蓝牙A2DP接收器
@@ -61,6 +69,9 @@ void initBluetooth(const char* deviceName) {
   a2dp_sink.set_on_connection_state_changed(connection_state_changed);
   a2dp_sink.set_on_audio_state_changed(audio_state_changed);
 
+  // 设置AVRC元数据回调
+  a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
+
   // 启动A2DP蓝牙接收器（会自动初始化I2S）
   a2dp_sink.start(deviceName);
 
@@ -82,11 +93,11 @@ BluetoothA2DPSink* getA2DPSink() {
  * 蓝牙连接状态回调函数
  */
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
-  Serial.printf("A2DP连接状态变化: %s\n", 
+  Serial.printf("A2DP连接状态变化: %s\n",
     state == ESP_A2D_CONNECTION_STATE_CONNECTED ? "已连接" : "已断开");
-  
+
   isConnected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
-  
+
   if (isConnected) {
     Serial.println("蓝牙设备已连接，保存配对信息");
     saveBluetoothConfig();
@@ -109,8 +120,33 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
 /**
  * AVRC元数据回调函数
  */
-void avrc_metadata_callback(uint8_t data1, const uint8_t *data2) {
-  Serial.printf("AVRC metadata: attribute id 0x%x, %s\n", data1, data2);
+void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
+  Serial.printf("AVRC metadata: attribute id 0x%x, %s\n", id, text);
+
+  // 根据属性ID更新对应的元数据
+  // ESP_AVRC_MD_ATTR_TITLE = 0x01
+  // ESP_AVRC_MD_ATTR_ARTIST = 0x02
+  // ESP_AVRC_MD_ATTR_ALBUM = 0x03
+
+  switch (id) {
+    case 0x01: // 标题
+      currentTitle = String((char*)text);
+      Serial.printf("歌曲标题: %s\n", currentTitle.c_str());
+      break;
+    case 0x02: // 艺术家
+      currentArtist = String((char*)text);
+      Serial.printf("艺术家: %s\n", currentArtist.c_str());
+      break;
+    case 0x03: // 专辑
+      currentAlbum = String((char*)text);
+      Serial.printf("专辑: %s\n", currentAlbum.c_str());
+      break;
+  }
+
+  // 如果设置了回调函数，则调用
+  if (metadata_callback != nullptr) {
+    metadata_callback(currentTitle.c_str(), currentArtist.c_str(), currentAlbum.c_str());
+  }
 }
 
 /**
@@ -263,3 +299,31 @@ void decreaseVolume(uint8_t step) {
   setVolume(newVolume);
 }
 
+
+/**
+ * 设置元数据更新回调函数
+ */
+void setMetadataCallback(void (*callback)(const char*, const char*, const char*)) {
+  metadata_callback = callback;
+}
+
+/**
+ * 获取当前歌曲标题
+ */
+String getCurrentTitle() {
+  return currentTitle;
+}
+
+/**
+ * 获取当前艺术家
+ */
+String getCurrentArtist() {
+  return currentArtist;
+}
+
+/**
+ * 获取当前专辑
+ */
+String getCurrentAlbum() {
+  return currentAlbum;
+}

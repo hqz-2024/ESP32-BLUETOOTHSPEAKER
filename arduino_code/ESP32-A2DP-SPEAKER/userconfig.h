@@ -45,7 +45,7 @@
 
 // ==================== LED控制参数 ====================
 #define WS2812_LED_COUNT        1       // WS2812 LED数量
-#define LED_BRIGHTNESS          250     // LED亮度 (0-255)
+#define LED_BRIGHTNESS          100     // LED亮度 (0-255)
 #define LED_BLINK_INTERVAL      1000    // LED闪烁间隔 (毫秒)
 #define LED_BREATH_INTERVAL     30      // LED呼吸灯更新间隔 (毫秒)
 #define LED_BREATH_STEP         3       // LED呼吸灯亮度步进值
@@ -71,8 +71,8 @@
 #define I2C_FREQ 100000    // I2C 频率 (100kHz)
 
 // ==================== 屏幕配置 ====================
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 240
+#define SCREEN_WIDTH 240
+#define SCREEN_HEIGHT 320
 #define SCREEN_PAD_LEFT 8
 #define SCREEN_PAD_RIGHT 8
 

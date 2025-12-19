@@ -1453,3 +1453,471 @@ void EEUI::hide_clock()
     }
     xSemaphoreGive(gif_render_ing);
 }
+// ==================== 播放图标渲染 ====================
+
+/**
+ * 渲染播放/暂停图标（公共接口）
+ */
+void EEUI::render_play_icon(bool is_playing)
+{
+    if (is_set_pure_mode)
+        return;
+
+    auto *param = new RenderBatParam{this, is_playing ? 1 : 0};
+    lv_async_call([](void *p)
+                  {
+                      auto *param = static_cast<RenderBatParam *>(p);
+                      param->self->render_play_icon_todo(param->percent == 1);
+                      delete param;
+                  },
+                  param);
+}
+
+/**
+ * 渲染播放/暂停图标（内部实现）
+ */
+void EEUI::render_play_icon_todo(bool is_playing)
+{
+    // 等待LVGL初始化完成
+    await_lvgl_initialized();
+
+    const int width = play_icon_width;
+    const int height = play_icon_height;
+
+    // 如果 canvas 不存在则创建
+    if (play_icon_canvas == NULL)
+    {
+        play_icon_cbuf = (lv_color_t *)malloc(LV_CANVAS_BUF_SIZE_TRUE_COLOR(width, height));
+        play_icon_canvas = lv_canvas_create(lv_scr_act());
+        lv_canvas_set_buffer(play_icon_canvas, play_icon_cbuf, width, height, LV_IMG_CF_TRUE_COLOR);
+    }
+
+    // 设置位置：左上角，留出内边距
+    int x = get_left_right_padding() / 2;
+    int y = get_top_bottom_padding() / 2;
+    lv_obj_set_pos(play_icon_canvas, x, y);
+
+    // 清空画布（白色背景，透明）
+    lv_canvas_fill_bg(play_icon_canvas, lv_color_make(0xFF, 0xFF, 0xFF), LV_OPA_TRANSP);
+
+    // 绘制图标
+    lv_draw_rect_dsc_t rect_dsc;
+    lv_draw_rect_dsc_init(&rect_dsc);
+    rect_dsc.bg_color = icon_color;
+    rect_dsc.bg_opa = LV_OPA_COVER;
+    rect_dsc.border_width = 0;
+
+    if (!is_playing)
+    {
+        // 播放中 - 显示暂停图标（两个竖条）
+        lv_canvas_draw_rect(play_icon_canvas, 4, 3, 5, 14, &rect_dsc);  // 左竖条
+        lv_canvas_draw_rect(play_icon_canvas, 11, 3, 5, 14, &rect_dsc); // 右竖条
+    }
+    else
+    {
+        // 暂停中 - 显示播放图标（三角形）
+        lv_draw_line_dsc_t line_dsc;
+        lv_draw_line_dsc_init(&line_dsc);
+        line_dsc.color = icon_color;
+        line_dsc.width = 2;
+
+        // 绘制三角形播放图标
+        lv_point_t triangle[] = {
+            {5, 3},
+            {5, 17},
+            {16, 10},
+            {5, 3}};
+        lv_canvas_draw_polygon(play_icon_canvas, triangle, 4, &rect_dsc);
+    }
+}
+
+// ==================== 蓝牙图标渲染 ====================
+
+/**
+ * 渲染蓝牙连接图标（公共接口）
+ */
+void EEUI::render_bluetooth_icon(bool is_connected)
+{
+    if (is_set_pure_mode)
+        return;
+
+    auto *param = new RenderBatParam{this, is_connected ? 1 : 0};
+    lv_async_call([](void *p)
+                  {
+                      auto *param = static_cast<RenderBatParam *>(p);
+                      param->self->render_bluetooth_icon_todo(param->percent == 1);
+                      delete param;
+                  },
+                  param);
+}
+
+/**
+ * 渲染蓝牙连接图标（内部实现）
+ */
+void EEUI::render_bluetooth_icon_todo(bool is_connected)
+{
+    // 等待LVGL初始化完成
+    await_lvgl_initialized();
+
+    const int width = bt_icon_width;
+    const int height = bt_icon_height;
+
+    // 如果 canvas 不存在则创建
+    if (bt_icon_canvas == NULL)
+    {
+        bt_icon_cbuf = (lv_color_t *)malloc(LV_CANVAS_BUF_SIZE_TRUE_COLOR(width, height));
+        bt_icon_canvas = lv_canvas_create(lv_scr_act());
+        lv_canvas_set_buffer(bt_icon_canvas, bt_icon_cbuf, width, height, LV_IMG_CF_TRUE_COLOR);
+    }
+
+    // 设置位置：播放图标右侧
+    int x = get_left_right_padding() / 2 + play_icon_width + 5;
+    int y = get_top_bottom_padding() / 2;
+    lv_obj_set_pos(bt_icon_canvas, x, y);
+
+    // 清空画布
+    lv_canvas_fill_bg(bt_icon_canvas, lv_color_make(0xFF, 0xFF, 0xFF), LV_OPA_TRANSP);
+
+    // 绘制蓝牙图标
+    lv_draw_line_dsc_t line_dsc;
+    lv_draw_line_dsc_init(&line_dsc);
+    line_dsc.color = is_connected ? lv_color_make(0, 0, 255) : gray_color2; // 已连接=蓝色，未连接=灰色
+    line_dsc.width = 2;
+
+    // 绘制蓝牙符号（简化版）
+    // 中间竖线
+    lv_point_t vertical_line[] = {{10, 2}, {10, 18}};
+    lv_canvas_draw_line(bt_icon_canvas, vertical_line, 2, &line_dsc);
+
+    // 上半部分斜线
+
+    lv_point_t top_right[] = {{10, 2}, {15, 7}};
+    lv_canvas_draw_line(bt_icon_canvas, top_right, 2, &line_dsc);
+
+    // 下半部分斜线
+
+    lv_point_t bottom_right[] = {{10, 18}, {15, 13}};
+    lv_canvas_draw_line(bt_icon_canvas, bottom_right, 2, &line_dsc);
+
+    // 中间交叉线
+    lv_point_t cross_line1[] = {{5, 7}, {15, 13}};
+    lv_canvas_draw_line(bt_icon_canvas, cross_line1, 2, &line_dsc);
+    lv_point_t cross_line2[] = {{15, 7}, {5, 13}};
+    lv_canvas_draw_line(bt_icon_canvas, cross_line2, 2, &line_dsc);
+}
+
+// ==================== 歌曲信息渲染 ====================
+
+/**
+ * 显示歌曲信息（公共接口）
+ */
+void EEUI::render_song_info(const char *title, const char *artist)
+{
+    if (is_set_pure_mode)
+        return;
+
+    // 等待标签互斥锁
+    xSemaphoreTake(label_mutex, portMAX_DELAY);
+
+    struct SongInfoParam
+    {
+        EEUI *self;
+        const char *title;
+        const char *artist;
+    };
+
+    auto *param = new SongInfoParam{this, title, artist};
+    lv_async_call([](void *p)
+                  {
+                      auto *param = static_cast<SongInfoParam *>(p);
+                      param->self->render_song_info_todo(param->title, param->artist);
+                      delete param;
+                  },
+                  param);
+}
+
+/**
+ * 显示歌曲信息（内部实现）
+ */
+void EEUI::render_song_info_todo(const char *title, const char *artist)
+{
+    // 等待LVGL初始化完成
+    await_lvgl_initialized();
+
+    // 创建或更新标题标签
+    if (song_title_label == NULL)
+    {
+        song_title_label = lv_label_create(containe_bt);
+        lv_label_set_long_mode(song_title_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_width(song_title_label, screen_width - get_left_right_padding() - 10);
+        lv_obj_set_style_text_font(song_title_label, &font_chinese_16, 0);
+
+        lv_style_init(&song_title_style);
+        lv_style_set_text_color(&song_title_style, theme_color);
+        lv_obj_add_style(song_title_label, &song_title_style, LV_PART_MAIN);
+        
+    }
+
+    // 设置标题文本
+    lv_label_set_text(song_title_label, title ? title : "未知歌曲");
+
+    // 强制刷新布局
+    lv_obj_update_layout(song_title_label);
+
+    // 计算底部位置（距离底部的偏移量）
+    int bottom_offset = get_top_bottom_padding() - 30 ; // 距离底部30像素
+
+    // 标题显示在底部居中
+    if (artist != nullptr && strlen(artist) > 0)
+    {
+        // 有艺术家信息时，标题在艺术家上方
+        lv_obj_align(song_title_label, LV_ALIGN_BOTTOM_MID, 0, -(bottom_offset + 20));
+    }
+    else
+    {
+        // 只有标题时，直接显示在底部
+        lv_obj_align(song_title_label, LV_ALIGN_BOTTOM_MID, 0, -bottom_offset);
+    }
+
+    // 创建或更新艺术家标签
+    if (artist != nullptr && strlen(artist) > 0)
+    {
+        if (song_artist_label == NULL)
+        {
+            song_artist_label = lv_label_create(containe_bt);
+            lv_label_set_long_mode(song_artist_label, LV_LABEL_LONG_SCROLL_CIRCULAR);
+            lv_obj_set_width(song_artist_label, screen_width - get_left_right_padding() - 10);
+            lv_obj_set_style_text_font(song_artist_label, &font_chinese_16, 0);
+
+            lv_style_init(&song_artist_style);
+            lv_style_set_text_color(&song_artist_style, gray_color2);
+            lv_obj_add_style(song_artist_label, &song_artist_style, LV_PART_MAIN);
+        }
+
+        lv_label_set_text(song_artist_label, artist);
+        lv_obj_update_layout(song_artist_label);
+        // 艺术家显示在底部
+        lv_obj_align(song_artist_label, LV_ALIGN_BOTTOM_MID, 0, -bottom_offset);
+        lv_obj_clear_flag(song_artist_label, LV_OBJ_FLAG_HIDDEN);
+    }
+    else if (song_artist_label != NULL)
+    {
+        // 隐藏艺术家标签
+        lv_obj_add_flag(song_artist_label, LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // 让文字保持在最上层
+    lv_obj_move_foreground(song_title_label);
+    if (song_artist_label != NULL)
+    {
+        lv_obj_move_foreground(song_artist_label);
+    }
+
+    xSemaphoreGive(label_mutex);
+}
+
+/**
+ * 隐藏歌曲信息
+ */
+void EEUI::hide_song_info()
+{
+    if (is_set_pure_mode)
+        return;
+
+    xSemaphoreTake(label_mutex, portMAX_DELAY);
+
+    lv_async_call([](void *p)
+                  {
+                      EEUI *self = static_cast<EEUI *>(p);
+                      if (self->song_title_label != NULL && lv_obj_is_valid(self->song_title_label))
+                      {
+                          lv_obj_add_flag(self->song_title_label, LV_OBJ_FLAG_HIDDEN);
+                      }
+                      if (self->song_artist_label != NULL && lv_obj_is_valid(self->song_artist_label))
+                      {
+                          lv_obj_add_flag(self->song_artist_label, LV_OBJ_FLAG_HIDDEN);
+                      }
+                  },
+                  this);
+
+    xSemaphoreGive(label_mutex);
+}
+
+// ==================== 圆形旋转图片渲染 ====================
+
+/**
+ * 旋转动画回调函数
+ */
+void EEUI::rotation_anim_cb(void *var, int32_t value)
+{
+    lv_obj_t *img = (lv_obj_t *)var;
+    if (img && lv_obj_is_valid(img))
+    {
+        lv_img_set_angle(img, value);
+    }
+}
+
+/**
+ * 渲染圆形旋转图片（公共接口）
+ */
+void EEUI::render_rotating_image(const lv_img_dsc_t *image, bool is_playing)
+{
+    if (is_set_pure_mode)
+        return;
+
+    struct RotatingImageParam
+    {
+        EEUI *self;
+        const lv_img_dsc_t *image;
+        bool is_playing;
+    };
+
+    auto *param = new RotatingImageParam{this, image, is_playing};
+    lv_async_call([](void *p)
+                  {
+                      auto *param = static_cast<RotatingImageParam *>(p);
+                      param->self->render_rotating_image_todo(param->image, param->is_playing);
+                      delete param;
+                  },
+                  param);
+}
+
+/**
+ * 渲染圆形旋转图片（内部实现）
+ */
+void EEUI::render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing)
+{
+    // 等待LVGL初始化完成
+    await_lvgl_initialized();
+
+    // 如果已存在，先删除旧的
+    if (rotating_image != NULL && lv_obj_is_valid(rotating_image))
+    {
+        lv_anim_del(rotating_image, nullptr);
+        lv_obj_t *to_del = rotating_image;
+        rotating_image = nullptr;
+        lv_obj_del_delayed(to_del, 100);
+    }
+
+    // 创建图片对象
+    rotating_image = lv_img_create(containe_bt);
+    if (!rotating_image)
+    {
+        Serial.println("创建旋转图片失败");
+        return;
+    }
+
+    // 设置图片源
+    lv_img_set_src(rotating_image, image);
+
+    // 设置图片大小（缩放到160x160）
+    lv_img_set_zoom(rotating_image, 256); // 256 = 100%，可以根据原图大小调整
+
+    // 设置为圆形（使用圆角半径）
+    lv_obj_set_size(rotating_image, rotating_image_size, rotating_image_size);
+    lv_obj_set_style_radius(rotating_image, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_clip_corner(rotating_image, true, 0);
+
+    // 设置抗锯齿
+    lv_obj_set_style_img_recolor_opa(rotating_image, LV_OPA_0, 0);
+
+    // 居中显示
+    lv_obj_align(rotating_image, LV_ALIGN_CENTER, 0, 0);
+
+    // 设置旋转中心点
+    lv_img_set_pivot(rotating_image, rotating_image_size / 2, rotating_image_size / 2);
+
+    // 如果正在播放，启动旋转动画
+    if (is_playing)
+    {
+        update_rotation_state_todo(true);
+    }
+
+    // 让文字保持在最上层
+    move_text_top();
+    if (song_title_label)
+        lv_obj_move_foreground(song_title_label);
+    if (song_artist_label)
+        lv_obj_move_foreground(song_artist_label);
+}
+
+/**
+ * 更新旋转状态（公共接口）
+ */
+void EEUI::update_rotation_state(bool is_playing)
+{
+    if (is_set_pure_mode)
+        return;
+
+    auto *param = new RenderBatParam{this, is_playing ? 1 : 0};
+    lv_async_call([](void *p)
+                  {
+                      auto *param = static_cast<RenderBatParam *>(p);
+                      param->self->update_rotation_state_todo(param->percent == 1);
+                      delete param;
+                  },
+                  param);
+}
+
+/**
+ * 更新旋转状态（内部实现）
+ */
+void EEUI::update_rotation_state_todo(bool is_playing)
+{
+    if (!rotating_image || !lv_obj_is_valid(rotating_image))
+    {
+        return;
+    }
+
+    if (is_playing && !is_rotation_active)
+    {
+        // 启动旋转动画
+        lv_anim_init(&rotation_anim);
+        lv_anim_set_var(&rotation_anim, rotating_image);
+        lv_anim_set_exec_cb(&rotation_anim, (lv_anim_exec_xcb_t)rotation_anim_cb);
+        lv_anim_set_values(&rotation_anim, 0, 3600); // 0-3600度（10圈）
+        lv_anim_set_time(&rotation_anim, 30000);     // 30秒转1圈
+        lv_anim_set_repeat_count(&rotation_anim, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&rotation_anim);
+        is_rotation_active = true;
+        Serial.println("启动旋转动画");
+    }
+    else if (!is_playing && is_rotation_active)
+    {
+        // 停止旋转动画
+        lv_anim_del(rotating_image, nullptr);
+        is_rotation_active = false;
+        Serial.println("停止旋转动画");
+    }
+}
+
+/**
+ * 隐藏圆形旋转图片（公共接口）
+ */
+void EEUI::hide_rotating_image()
+{
+    if (is_set_pure_mode)
+        return;
+
+    lv_async_call([](void *p)
+                  {
+                      EEUI *self = static_cast<EEUI *>(p);
+                      self->hide_rotating_image_todo();
+                  },
+                  this);
+}
+
+/**
+ * 隐藏圆形旋转图片（内部实现）
+ */
+void EEUI::hide_rotating_image_todo()
+{
+    if (rotating_image != NULL && lv_obj_is_valid(rotating_image))
+    {
+        lv_anim_del(rotating_image, nullptr);
+        lv_obj_del(rotating_image);
+        rotating_image = nullptr;
+        is_rotation_active = false;
+    }
+}
+

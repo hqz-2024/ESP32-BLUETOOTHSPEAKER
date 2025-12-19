@@ -369,7 +369,8 @@ private:
     void render_song_info_todo(const char *title, const char *artist);
 
     // 圆形旋转图片相关
-    lv_obj_t *rotating_image = nullptr;      // 旋转图片对象
+    lv_obj_t *rotating_container = nullptr;  // 圆形容器对象（负责裁剪）
+    lv_obj_t *rotating_image = nullptr;      // 旋转图片对象（负责旋转）
     lv_anim_t rotation_anim;                 // 旋转动画对象
     bool is_rotation_active = false;         // 旋转是否激活
     int rotating_image_size = 160;           // 图片尺寸

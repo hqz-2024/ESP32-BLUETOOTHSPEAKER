@@ -1784,48 +1784,70 @@ void EEUI::render_rotating_image(const lv_img_dsc_t *image, bool is_playing)
 
 /**
  * 渲染圆形旋转图片（内部实现）
+ * 使用容器+图片的双层结构：
+ * - 容器：负责圆形裁剪（保持不动）
+ * - 图片：负责旋转（在容器内旋转）
  */
 void EEUI::render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing)
 {
     // 等待LVGL初始化完成
     await_lvgl_initialized();
 
-    // 如果已存在，先删除旧的
-    if (rotating_image != NULL && lv_obj_is_valid(rotating_image))
+    // 如果已存在，先删除旧的容器（会自动删除内部的图片）
+    if (rotating_container != NULL && lv_obj_is_valid(rotating_container))
     {
         lv_anim_del(rotating_image, nullptr);
-        lv_obj_t *to_del = rotating_image;
+        lv_obj_del(rotating_container);
+        rotating_container = nullptr;
         rotating_image = nullptr;
-        lv_obj_del_delayed(to_del, 100);
     }
 
-    // 创建图片对象
-    rotating_image = lv_img_create(containe_bt);
-    if (!rotating_image)
+    // ========== 第1步：创建圆形容器（负责裁剪） ==========
+    rotating_container = lv_obj_create(containe_bt);
+    if (!rotating_container)
     {
-        Serial.println("创建旋转图片失败");
+        Serial.println("创建旋转容器失败");
         return;
     }
 
-    // 设置图片源
+    // 设置容器尺寸和圆形裁剪
+    lv_obj_set_size(rotating_container, rotating_image_size, rotating_image_size);
+    lv_obj_set_style_radius(rotating_container, LV_RADIUS_CIRCLE, 0);      // 圆形
+    lv_obj_set_style_clip_corner(rotating_container, true, 0);             // 启用裁剪
+
+    // 容器样式：透明背景、无边框、无内边距
+    lv_obj_set_style_bg_opa(rotating_container, LV_OPA_TRANSP, 0);         // 透明背景
+    lv_obj_set_style_border_width(rotating_container, 0, 0);               // 无边框
+    lv_obj_set_style_pad_all(rotating_container, 0, 0);                    // 无内边距
+
+    // 容器居中显示
+    lv_obj_align(rotating_container, LV_ALIGN_CENTER, 0, 0);
+
+    // ========== 第2步：在容器内创建图片（负责旋转） ==========
+    rotating_image = lv_img_create(rotating_container);  // 父对象是容器
+    if (!rotating_image)
+    {
+        Serial.println("创建旋转图片失败");
+        lv_obj_del(rotating_container);
+        rotating_container = nullptr;
+        return;
+    }
+
+    // 设置图片源和缩放
     lv_img_set_src(rotating_image, image);
+    lv_img_set_zoom(rotating_image, 256); // 256 = 100%
 
-    // 设置图片大小（缩放到160x160）
-    lv_img_set_zoom(rotating_image, 256); // 256 = 100%，可以根据原图大小调整
-
-    // 设置为圆形（使用圆角半径）
+    // 图片填满容器
     lv_obj_set_size(rotating_image, rotating_image_size, rotating_image_size);
-    lv_obj_set_style_radius(rotating_image, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_clip_corner(rotating_image, true, 0);
+    lv_obj_center(rotating_image);  // 在容器内居中
+
+    // 设置旋转中心点（相对于图片自身中心）
+    lv_img_set_pivot(rotating_image, rotating_image_size / 2, rotating_image_size / 2);
 
     // 设置抗锯齿
     lv_obj_set_style_img_recolor_opa(rotating_image, LV_OPA_0, 0);
 
-    // 居中显示
-    lv_obj_align(rotating_image, LV_ALIGN_CENTER, 0, 0);
-
-    // 设置旋转中心点
-    lv_img_set_pivot(rotating_image, rotating_image_size / 2, rotating_image_size / 2);
+    // 注意：图片不需要设置圆角裁剪，由容器负责裁剪
 
     // 如果正在播放，启动旋转动画
     if (is_playing)
@@ -1833,12 +1855,7 @@ void EEUI::render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing
         update_rotation_state_todo(true);
     }
 
-    // 让文字保持在最上层
-    move_text_top();
-    if (song_title_label)
-        lv_obj_move_foreground(song_title_label);
-    if (song_artist_label)
-        lv_obj_move_foreground(song_artist_label);
+    Serial.println("圆形旋转图片渲染完成（容器+图片双层结构）");
 }
 
 /**
@@ -1912,10 +1929,11 @@ void EEUI::hide_rotating_image()
  */
 void EEUI::hide_rotating_image_todo()
 {
-    if (rotating_image != NULL && lv_obj_is_valid(rotating_image))
+    if (rotating_container != NULL && lv_obj_is_valid(rotating_container))
     {
         lv_anim_del(rotating_image, nullptr);
-        lv_obj_del(rotating_image);
+        lv_obj_del(rotating_container);  // 删除容器会自动删除内部的图片
+        rotating_container = nullptr;
         rotating_image = nullptr;
         is_rotation_active = false;
     }

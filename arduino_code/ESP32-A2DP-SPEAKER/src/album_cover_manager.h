@@ -57,7 +57,7 @@ const lv_img_dsc_t* getDefaultAlbumCover();
 
 /**
  * 获取专辑封面总数
- * 
+ *
  * @return 封面数量
  */
 int getAlbumCoverCount();
@@ -66,6 +66,34 @@ int getAlbumCoverCount();
  * 打印所有可用的专辑封面名称
  */
 void printAvailableCovers();
+
+/**
+ * 切换到下一个封面（循环）
+ *
+ * @return 新的封面图片数据指针
+ */
+const lv_img_dsc_t* nextAlbumCover();
+
+/**
+ * 切换到上一个封面（循环）
+ *
+ * @return 新的封面图片数据指针
+ */
+const lv_img_dsc_t* previousAlbumCover();
+
+/**
+ * 获取当前封面索引
+ *
+ * @return 当前封面索引
+ */
+int getCurrentCoverIndex();
+
+/**
+ * 获取当前封面
+ *
+ * @return 当前封面图片数据指针
+ */
+const lv_img_dsc_t* getCurrentAlbumCover();
 
 #endif // ALBUM_COVER_MANAGER_H
 

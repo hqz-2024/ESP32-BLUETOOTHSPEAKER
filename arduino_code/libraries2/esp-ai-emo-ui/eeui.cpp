@@ -1849,13 +1849,24 @@ void EEUI::render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing
 
     // 注意：图片不需要设置圆角裁剪，由容器负责裁剪
 
-    // 如果正在播放，启动旋转动画
+    // 根据播放状态启动或停止旋转动画
     if (is_playing)
     {
-        update_rotation_state_todo(true);
+        // 启动旋转动画
+        lv_anim_init(&rotation_anim);
+        lv_anim_set_var(&rotation_anim, rotating_image);
+        lv_anim_set_exec_cb(&rotation_anim, (lv_anim_exec_xcb_t)rotation_anim_cb);
+        lv_anim_set_values(&rotation_anim, 0, 3600); // 0-3600度（10圈）
+        lv_anim_set_time(&rotation_anim, 30000);     // 30秒转1圈
+        lv_anim_set_repeat_count(&rotation_anim, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_start(&rotation_anim);
+        is_rotation_active = true;
     }
-
-    Serial.println("圆形旋转图片渲染完成（容器+图片双层结构）");
+    else
+    {
+        // 确保旋转动画停止
+        is_rotation_active = false;
+    }
 }
 
 /**
@@ -1897,14 +1908,12 @@ void EEUI::update_rotation_state_todo(bool is_playing)
         lv_anim_set_repeat_count(&rotation_anim, LV_ANIM_REPEAT_INFINITE);
         lv_anim_start(&rotation_anim);
         is_rotation_active = true;
-        Serial.println("启动旋转动画");
     }
     else if (!is_playing && is_rotation_active)
     {
         // 停止旋转动画
         lv_anim_del(rotating_image, nullptr);
         is_rotation_active = false;
-        Serial.println("停止旋转动画");
     }
 }
 

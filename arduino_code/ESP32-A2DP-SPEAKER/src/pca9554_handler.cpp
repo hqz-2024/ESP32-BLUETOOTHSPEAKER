@@ -2,9 +2,9 @@
  * PCA9554 IO扩展芯片处理模块实现
  *
  * 按钮逻辑：
- * - IO1: 长按>=2秒增加音量(持续按住每500ms增加)，短按(200ms-2秒)上一曲
- * - IO2: 按下播放/暂停（200ms防抖）
- * - IO3: 长按>=2秒减少音量(持续按住每500ms减少)，短按(200ms-2秒)下一曲
+ * - IO1: 长按>=1秒减少音量(持续按住每500ms减少)，短按(100ms-1秒)上一曲
+ * - IO2: 按下播放/暂停（100ms防抖）
+ * - IO3: 长按>=1秒增加音量(持续按住每500ms增加)，短按(100ms-1秒)下一曲
  *
  * @author ESP-AI Team
  * @date 2024
@@ -20,7 +20,7 @@
 static PCA9554 ioExpander(PCA9554_ADDR);
 
 // ==================== 时间参数 ====================
-#define DEBOUNCE_TIME 100           // 防抖时间（毫秒）
+#define DEBOUNCE_TIME 200           // 防抖时间（毫秒）
 #define LONG_PRESS_TIME 1000        // 长按触发时间（毫秒）
 #define VOLUME_REPEAT_INTERVAL 500  // 音量重复调整间隔（毫秒）
 #define VOLUME_STEP 13              // 音量步进值（约10%）
@@ -97,16 +97,13 @@ void updatePCA9554() {
     io1Pressed = true;
     io1PressStartTime = currentTime;
     io1VolumeActive = false;
-    Serial.println("IO1: 按下");
   }
   else if (!io1CurrentlyPressed && io1Pressed) {
     // 按钮释放
     unsigned long pressDuration = currentTime - io1PressStartTime;
-    Serial.printf("IO1: 释放, 持续时间=%lums\n", pressDuration);
 
     if (!io1VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
-      // 短按: 200ms <= 持续时间 < 2000ms，执行上一曲
-      Serial.println("IO1: 上一曲");
+      // 短按: 100ms <= 持续时间 < 1000ms，执行上一曲
       previousTrack();
     }
     io1Pressed = false;
@@ -121,13 +118,11 @@ void updatePCA9554() {
         // 首次触发长按
         io1VolumeActive = true;
         io1LastVolumeTime = currentTime;
-        Serial.println("IO1: 长按开始减少音量");
         decreaseVolume(VOLUME_STEP);
       }
       else if (currentTime - io1LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
-        // 持续按住，每500ms增加一次
+        // 持续按住，每500ms减少一次
         io1LastVolumeTime = currentTime;
-        Serial.println("IO1: 继续减少音量");
         decreaseVolume(VOLUME_STEP);
       }
     }
@@ -136,7 +131,6 @@ void updatePCA9554() {
   // ==================== 处理IO2 ====================
   if (io2CurrentlyPressed) {
     if (currentTime - io2LastPressTime >= DEBOUNCE_TIME) {
-      Serial.println("IO2: 播放/暂停");
       togglePlayPause();
       io2LastPressTime = currentTime;
     }
@@ -148,16 +142,13 @@ void updatePCA9554() {
     io3Pressed = true;
     io3PressStartTime = currentTime;
     io3VolumeActive = false;
-    Serial.println("IO3: 按下");
   }
   else if (!io3CurrentlyPressed && io3Pressed) {
     // 按钮释放
     unsigned long pressDuration = currentTime - io3PressStartTime;
-    Serial.printf("IO3: 释放, 持续时间=%lums\n", pressDuration);
 
     if (!io3VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
-      // 短按: 200ms <= 持续时间 < 2000ms，执行下一曲
-      Serial.println("IO3: 下一曲");
+      // 短按: 100ms <= 持续时间 < 1000ms，执行下一曲
       nextTrack();
     }
     io3Pressed = false;
@@ -172,13 +163,11 @@ void updatePCA9554() {
         // 首次触发长按
         io3VolumeActive = true;
         io3LastVolumeTime = currentTime;
-        Serial.println("IO3: 长按开始增加音量");
         increaseVolume(VOLUME_STEP);
       }
       else if (currentTime - io3LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
-        // 持续按住，每500ms减少一次
+        // 持续按住，每500ms增加一次
         io3LastVolumeTime = currentTime;
-        Serial.println("IO3: 继续增加音量");
         increaseVolume(VOLUME_STEP);
       }
     }

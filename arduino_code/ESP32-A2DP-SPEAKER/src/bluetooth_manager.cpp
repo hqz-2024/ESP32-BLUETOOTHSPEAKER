@@ -29,6 +29,12 @@ static String currentAlbum = "";
 // 元数据更新回调函数指针
 static void (*metadata_callback)(const char* title, const char* artist, const char* album) = nullptr;
 
+// 曲目切换回调函数指针
+static void (*track_change_callback)(bool isNext) = nullptr;
+
+// 音量变化回调函数指针
+static void (*volume_change_callback)(uint8_t volume) = nullptr;
+
 /**
  * 初始化蓝牙A2DP接收器
  */
@@ -93,16 +99,10 @@ BluetoothA2DPSink* getA2DPSink() {
  * 蓝牙连接状态回调函数
  */
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
-  Serial.printf("A2DP连接状态变化: %s\n",
-    state == ESP_A2D_CONNECTION_STATE_CONNECTED ? "已连接" : "已断开");
-
   isConnected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
 
   if (isConnected) {
-    Serial.println("蓝牙设备已连接，保存配对信息");
     saveBluetoothConfig();
-  } else {
-    Serial.println("蓝牙设备已断开，等待重连...");
   }
 }
 
@@ -110,9 +110,6 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
  * 音频播放状态回调函数
  */
 void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
-  Serial.printf("A2DP audio state: %s\n",
-    state == ESP_A2D_AUDIO_STATE_STARTED ? "Started" : "Stopped");
-
   // 更新播放状态
   isPlaying = (state == ESP_A2D_AUDIO_STATE_STARTED);
 }
@@ -121,8 +118,6 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
  * AVRC元数据回调函数
  */
 void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
-  Serial.printf("AVRC metadata: attribute id 0x%x, %s\n", id, text);
-
   // 根据属性ID更新对应的元数据
   // ESP_AVRC_MD_ATTR_TITLE = 0x01
   // ESP_AVRC_MD_ATTR_ARTIST = 0x02
@@ -131,15 +126,12 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
   switch (id) {
     case 0x01: // 标题
       currentTitle = String((char*)text);
-      Serial.printf("歌曲标题: %s\n", currentTitle.c_str());
       break;
     case 0x02: // 艺术家
       currentArtist = String((char*)text);
-      Serial.printf("艺术家: %s\n", currentArtist.c_str());
       break;
     case 0x03: // 专辑
       currentAlbum = String((char*)text);
-      Serial.printf("专辑: %s\n", currentAlbum.c_str());
       break;
   }
 
@@ -219,8 +211,10 @@ void togglePlayPause() {
 
   if (isPlaying) {
     a2dp_sink.pause();
+    isPlaying = false;  // 立即更新本地状态，UI立即响应
   } else {
     a2dp_sink.play();
+    isPlaying = true;   // 立即更新本地状态，UI立即响应
   }
 }
 
@@ -230,6 +224,7 @@ void togglePlayPause() {
 void playMusic() {
   if (isConnected) {
     a2dp_sink.play();
+    isPlaying = true;  // 立即更新本地状态
   }
 }
 
@@ -239,6 +234,7 @@ void playMusic() {
 void pauseMusic() {
   if (isConnected) {
     a2dp_sink.pause();
+    isPlaying = false;  // 立即更新本地状态
   }
 }
 
@@ -248,6 +244,11 @@ void pauseMusic() {
 void nextTrack() {
   if (isConnected) {
     a2dp_sink.next();
+
+    // 触发曲目切换回调
+    if (track_change_callback != nullptr) {
+      track_change_callback(true);  // true = 下一曲
+    }
   }
 }
 
@@ -257,6 +258,11 @@ void nextTrack() {
 void previousTrack() {
   if (isConnected) {
     a2dp_sink.previous();
+
+    // 触发曲目切换回调
+    if (track_change_callback != nullptr) {
+      track_change_callback(false);  // false = 上一曲
+    }
   }
 }
 
@@ -267,7 +273,11 @@ void setVolume(uint8_t volume) {
   if (volume > 127) volume = 127;
   currentVolume = volume;
   a2dp_sink.set_volume(volume);
-  Serial.printf("A2DP音量设置: %d (%.0f%%)\n", volume, (float)volume / 127.0f * 100.0f);
+
+  // 触发音量变化回调
+  if (volume_change_callback != nullptr) {
+    volume_change_callback(volume);
+  }
 }
 
 /**
@@ -305,6 +315,20 @@ void decreaseVolume(uint8_t step) {
  */
 void setMetadataCallback(void (*callback)(const char*, const char*, const char*)) {
   metadata_callback = callback;
+}
+
+/**
+ * 设置曲目切换回调函数
+ */
+void setTrackChangeCallback(void (*callback)(bool isNext)) {
+  track_change_callback = callback;
+}
+
+/**
+ * 设置音量变化回调函数
+ */
+void setVolumeChangeCallback(void (*callback)(uint8_t volume)) {
+  volume_change_callback = callback;
 }
 
 /**

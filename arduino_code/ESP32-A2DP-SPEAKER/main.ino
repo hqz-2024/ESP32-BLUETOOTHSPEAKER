@@ -71,20 +71,42 @@
 TFT_eSPI tft = TFT_eSPI();
 EEUI eeui;
 
-// ==================== 元数据回调函数 ====================
+// ==================== 回调函数 ====================
 /**
  * AVRC元数据更新回调
  * 当接收到新的歌曲信息时调用
  */
 void onMetadataUpdate(const char* title, const char* artist, const char* album) {
-  Serial.println("========== 歌曲信息更新 ==========");
-  Serial.printf("标题: %s\n", title);
-  Serial.printf("艺术家: %s\n", artist);
-  Serial.printf("专辑: %s\n", album);
-  Serial.println("=================================");
-
   // 更新屏幕显示
   eeui.render_song_info(title, artist);
+}
+
+/**
+ * 曲目切换回调
+ * 当切换曲目时调用，同步更换封面图片
+ */
+void onTrackChange(bool isNext) {
+  // 根据切换方向更换封面
+  const lv_img_dsc_t* newCover = nullptr;
+  if (isNext) {
+    newCover = nextAlbumCover();  // 切换到下一个封面
+  } else {
+    newCover = previousAlbumCover();  // 切换到上一个封面
+  }
+
+  // 更新屏幕显示的封面（保持当前播放状态）
+  bool currentPlaying = isAudioPlaying();
+  eeui.render_rotating_image(newCover, currentPlaying);
+}
+
+/**
+ * 音量变化回调
+ * 当音量改变时调用，显示音量UI
+ */
+void onVolumeChange(uint8_t volume) {
+  // 将音量从 0-127 转换为 0-1 的浮点数
+  float volumePercent = (float)volume / 127.0f;
+  eeui.render_volume(volumePercent);
 }
 
 // ==================== 初始化函数 ====================
@@ -104,8 +126,10 @@ void setup() {
   // 初始化蓝牙A2DP（会自动配置I2S）
   initBluetooth(BT_DEVICE_NAME);
 
-  // 设置元数据回调函数
-  setMetadataCallback(onMetadataUpdate);
+  // 设置回调函数
+  setMetadataCallback(onMetadataUpdate);      // 元数据更新回调
+  setTrackChangeCallback(onTrackChange);      // 曲目切换回调
+  setVolumeChangeCallback(onVolumeChange);    // 音量变化回调
 
   setI2Smute(false);       //配置完成取消静音
 
@@ -183,29 +207,7 @@ void loop() {
   if (currentPlaying != lastPlayingState) {
     eeui.render_play_icon(currentPlaying);
     eeui.update_rotation_state(currentPlaying); // 更新旋转状态
-    Serial.printf("UI: 播放状态 - %s\n", currentPlaying ? "播放中" : "已暂停");
     lastPlayingState = currentPlaying;
-  }
-
-  // 定期打印状态信息
-  static unsigned long lastStatusPrint = 0;
-  unsigned long currentTime = millis();
-  if (currentTime - lastStatusPrint >= STATUS_PRINT_INTERVAL) {
-    esp_a2d_connection_state_t conn_state = getA2DPSink()->get_connection_state();
-    Serial.printf("状态 - 连接: %s, 播放: %s, 音量: %.2f, 重连状态: %s\n",
-                  isBluetoothConnected() ? "已连接" : "未连接",
-                  isAudioPlaying() ? "播放中" : "暂停",
-                  getCurrentVolume(),
-                  conn_state == ESP_A2D_CONNECTION_STATE_CONNECTING ? "重连中" : "空闲");
-
-    // 打印当前歌曲信息
-    String title = getCurrentTitle();
-    String artist = getCurrentArtist();
-    if (title.length() > 0) {
-      Serial.printf("当前歌曲: %s - %s\n", title.c_str(), artist.c_str());
-    }
-
-    lastStatusPrint = currentTime;
   }
 
   delay(1);

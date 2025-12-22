@@ -123,6 +123,20 @@ void decreaseVolume(uint8_t step = 13);
 void setMetadataCallback(void (*callback)(const char*, const char*, const char*));
 
 /**
+ * 设置曲目切换回调函数
+ *
+ * @param callback 回调函数指针，参数为 (isNext: true=下一曲, false=上一曲)
+ */
+void setTrackChangeCallback(void (*callback)(bool isNext));
+
+/**
+ * 设置音量变化回调函数
+ *
+ * @param callback 回调函数指针，参数为 (volume: 0-127)
+ */
+void setVolumeChangeCallback(void (*callback)(uint8_t volume));
+
+/**
  * 获取当前歌曲标题
  *
  * @return 歌曲标题字符串

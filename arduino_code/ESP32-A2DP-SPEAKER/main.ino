@@ -67,9 +67,13 @@
 #include "src/config_manager.h"
 #include "src/pca9554_handler.h"
 #include "src/album_cover_manager.h"
+#include <Battery.h>
+
+Battery battery(3000, 4200, BATTERY_PIN,12);
 
 TFT_eSPI tft = TFT_eSPI();
 EEUI eeui;
+
 
 // ==================== 回调函数 ====================
 /**
@@ -79,6 +83,8 @@ EEUI eeui;
 void onMetadataUpdate(const char* title, const char* artist, const char* album) {
   // 更新屏幕显示
   eeui.render_song_info(title, artist);
+
+
 }
 
 /**
@@ -108,6 +114,18 @@ void onVolumeChange(uint8_t volume) {
   float volumePercent = (float)volume / 127.0f;
   eeui.render_volume(volumePercent);
 }
+// ==================== 电量更新函数 ====================
+void updateBattery() {
+  // 添加电池信息更新
+  static unsigned long lastBatteryUpdate = 0;
+  if (millis() - lastBatteryUpdate > 3000) {
+
+    // 更新右上角电池图标（始终显示）
+    eeui.render_battery(battery.level());
+
+    lastBatteryUpdate = millis();
+  }
+}
 
 // ==================== 初始化函数 ====================
 void setup() {
@@ -122,18 +140,14 @@ void setup() {
   // initVolumeControl();    // 初始化音量控制
   initLedControl();       // 初始化LED控制
   initButtonHandler();    // 初始化按钮处理
-
+  
   // 初始化蓝牙A2DP（会自动配置I2S）
   initBluetooth(BT_DEVICE_NAME);
-
-  // 设置回调函数
-  setMetadataCallback(onMetadataUpdate);      // 元数据更新回调
-  setTrackChangeCallback(onTrackChange);      // 曲目切换回调
-  setVolumeChangeCallback(onVolumeChange);    // 音量变化回调
 
   setI2Smute(false);       //配置完成取消静音
 
   // 初始化屏幕
+  battery.begin(3300, 4.0, &asigmoidal);
   tft.begin();
   tft.setRotation(4); // 设置屏幕方向 V4 开发板
   eeui.begin(&tft, nullptr , 0 , SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
@@ -141,10 +155,15 @@ void setup() {
   // 初始化专辑封面管理器
   initAlbumCoverManager();
 
+    // 设置回调函数
+  setMetadataCallback(onMetadataUpdate);      // 元数据更新回调
+  setTrackChangeCallback(onTrackChange);      // 曲目切换回调
+  setVolumeChangeCallback(onVolumeChange);    // 音量变化回调
+
   // 初始化UI显示
   eeui.render_volume(1);
-  eeui.recharge(true);
-  eeui.render_battery(100);
+  eeui.recharge(battery.getischarge());
+  eeui.render_battery(battery.level());
   eeui.render_play_icon(false);      // 初始显示播放图标（暂停状态）
   eeui.render_bluetooth_icon(false); // 初始显示蓝牙图标（未连接）
   eeui.render_song_info("等待连接...", nullptr); // 初始提示信息
@@ -175,6 +194,7 @@ void loop() {
   updateButton();
   checkMultiClickTimeout();
 
+  updateBattery();
   // 更新音量控制
   // updateVolume();
 
@@ -199,10 +219,11 @@ void loop() {
     } else {
       Serial.println("UI: 蓝牙已断开");
       eeui.render_song_info("等待连接...", nullptr);
+
     }
     lastConnectedState = currentConnected;
   }
-
+  
   // 播放状态变化
   if (currentPlaying != lastPlayingState) {
     eeui.render_play_icon(currentPlaying);

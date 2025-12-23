@@ -22,6 +22,7 @@
 #define BOOT_BUTTON_PIN 0     // BOOT按钮引脚（用于恢复出厂设置）
 #define VOLUME_ADC_PIN  -1    // 音量控制ADC输入引脚
 #define WS2812_PIN      2    // WS2812 RGB LED数据引脚
+#define BATTERY_PIN     35    // 电池电压检测引脚
 
 // ==================== I2S音频参数配置 ====================
 #define I2S_SAMPLE_RATE     44100                       // 采样率 (Hz)

@@ -1,11 +1,43 @@
 @echo off
-echo 正在安装图片转C数组工具的依赖库...
+title Install Dependencies
+
+echo ========================================
+echo Picture to C Array Tool - Install
+echo ========================================
+echo.
+echo Installing dependencies...
 echo.
 
-pip install PyQt5 Pillow numpy
+echo [1/3] Installing PyQt5...
+pip install --force-reinstall PyQt5==5.15.11
 
 echo.
-echo 安装完成！
-echo 现在可以运行: python run.py
+echo [2/3] Installing Pillow...
+pip install Pillow
+
+echo.
+echo [3/3] Installing NumPy...
+pip install numpy
+
+echo.
+echo ========================================
+echo Verifying installation...
+echo ========================================
+python -c "from PyQt5.QtWidgets import QApplication; import PIL; import numpy; print('All dependencies installed successfully!')"
+
+if errorlevel 1 (
+    echo.
+    echo Installation verification failed!
+    echo Please check the error messages above.
+) else (
+    echo.
+    echo ========================================
+    echo Installation completed!
+    echo ========================================
+    echo.
+    echo You can now run the tool by double-clicking "start.bat"
+)
+
+echo.
 pause
 

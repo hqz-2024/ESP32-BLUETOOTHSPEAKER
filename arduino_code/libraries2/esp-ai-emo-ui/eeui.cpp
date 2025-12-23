@@ -806,13 +806,16 @@ void EEUI::render_battery_todo(int percent)
     lv_canvas_draw_rect(battery_canvas, width - header_width - 1, height / 4 + 1, 2, height / 2, &rect_dsc);
 
     // 计算当前电量格数(0-4格)
-    int bars = (percent * 4) / 100;
+    int bars = (percent * 5) / 100;
     if (percent > 0 && bars == 0)
         bars = 1; // 只要有电就至少显示1格
 
+    if (bars > 4)
+        bars = 4;
+
     // 绘制电量格
     rect_dsc.border_width = 0;
-    rect_dsc.bg_color = percent <= 25 ? lv_color_make(255, 0, 0) : icon_color; // 低电量显示红色
+    rect_dsc.bg_color = percent <= 20 ? lv_color_make(255, 0, 0) : icon_color; // 低电量显示红色
 
     for (int i = 0; i < bars; i++)
     {

@@ -132,7 +132,8 @@ static inline uint8_t sigmoidal(uint16_t voltage, uint16_t minVoltage, uint16_t 
  */
 static inline uint8_t asigmoidal(uint16_t voltage, uint16_t minVoltage, uint16_t maxVoltage)
 {
-	uint8_t result = 101 - (101 / pow(1 + pow(1.33 * (voltage - minVoltage) / (maxVoltage - minVoltage), 4.5), 3));
+	// uint8_t result = 101 - (101 / pow(1 + pow(1.33 * (voltage - minVoltage) / (maxVoltage - minVoltage), 4.5), 3));
+	uint8_t result = 113 - (116 / pow(1 + pow(0.93 * (voltage - minVoltage) / (maxVoltage - minVoltage), 3.5), 4));
 	return result >= 100 ? 100 : result;
 }
 

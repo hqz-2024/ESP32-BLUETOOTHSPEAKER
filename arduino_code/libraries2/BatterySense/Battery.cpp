@@ -93,47 +93,30 @@ uint16_t Battery::voltage(uint8_t msDelay)
 {
 	delay(msDelay);
 
-	// 多次采样
-	const int samples = 20;
-	uint32_t sum = 0;
-	uint16_t values[samples];
-	uint16_t maxVal = 0;
-	uint16_t minVal = 0xFFFF;
+	// 读取当前ADC值（单位：毫伏）
+	uint16_t currentReading = analogReadMilliVolts(sensePin);
 
-	// 采样并记录最值
-	// for (int i = 0; i < samples; i++)
-	// {
-	// 	values[i] = analogReadMilliVolts(sensePin);
-	// 	if (values[i] > maxVal)
-	// 		maxVal = values[i];
-	// 	if (values[i] < minVal)
-	// 		minVal = values[i];
-	// 	sum += values[i];
-	// 	delay(2);
-	// }
-	
-	// 去除最值后的平均
-	// sum = sum - maxVal - minVal;
-	sum = analogReadMilliVolts(sensePin);
-	// uint16_t average = sum / (samples - 2);
-	uint16_t average =sum ;
-	// 将新值加入滑动窗口
-	// voltageWindow[windowIndex] = average;
-	// windowIndex = (windowIndex + 1) % WINDOW_SIZE;
-	// if (windowIndex == 0)
-	// 	windowFull = true;
+	// 低通滤波器参数
+	// alpha = 0.1 表示新值权重10%，旧值权重90%（强滤波，响应慢但平滑）
+	// alpha = 0.3 表示新值权重30%，旧值权重70%（中等滤波，平衡响应和平滑）
+	// alpha = 0.5 表示新值权重50%，旧值权重50%（弱滤波，响应快但不够平滑）
+	const float alpha = 0.2;  // 滤波系数，可根据需要调整
 
-	// // 计算滑动窗口平均值
-	// uint32_t windowSum = 0;
-	// int validSamples = windowFull ? WINDOW_SIZE : windowIndex;
-	// for (int i = 0; i < validSamples; i++)
-	// {
-	// 	windowSum += voltageWindow[i];
-	// }
-	// uint16_t windowAverage = windowSum / validSamples;
+	// 静态变量保存上次滤波后的值
+	static uint16_t filteredValue = 0;
+	static bool initialized = false;
 
-	// 最终结果
-	// uint16_t reading = windowAverage * 4;
-	uint16_t reading = average * 4;
+	// 首次运行时初始化
+	if (!initialized) {
+		filteredValue = currentReading;
+		initialized = true;
+	}
+
+	// 低通滤波公式: filtered = alpha * current + (1 - alpha) * filtered_old
+	filteredValue = (uint16_t)(alpha * currentReading + (1.0 - alpha) * filteredValue);
+
+	// 应用分压比（4倍）得到实际电池电压
+	uint16_t reading = filteredValue * 4;
+
 	return reading;
 }

@@ -67,6 +67,7 @@
 #include "src/config_manager.h"
 #include "src/pca9554_handler.h"
 #include "src/album_cover_manager.h"
+#include "src/qmi8658_handler.h"
 #include <Battery.h>
 
 Battery battery(3000, 4200, BATTERY_PIN,12);
@@ -141,6 +142,13 @@ void setup() {
   initLedControl();       // 初始化LED控制
   initButtonHandler();    // 初始化按钮处理
   
+  // 初始化PCA9554 IO扩展芯片
+  if (initPCA9554Handler()) {
+    Serial.println("PCA9554 初始化成功");
+  } else {
+    Serial.println("PCA9554 初始化失败，跳过IO扩展功能");
+  }
+
   // 初始化蓝牙A2DP（会自动配置I2S）
   initBluetooth(BT_DEVICE_NAME);
 
@@ -155,7 +163,11 @@ void setup() {
   // 初始化专辑封面管理器
   initAlbumCoverManager();
 
-    // 设置回调函数
+  // 初始化QMI8658A六轴传感器
+  initQMI8658Handler();
+  setQMI8658EEUIInstance(&eeui);
+
+  // 设置回调函数
   setMetadataCallback(onMetadataUpdate);      // 元数据更新回调
   setTrackChangeCallback(onTrackChange);      // 曲目切换回调
   setVolumeChangeCallback(onVolumeChange);    // 音量变化回调
@@ -175,13 +187,6 @@ void setup() {
   // 设置A2DP音频数据回调
   getA2DPSink()->set_stream_reader(read_data_stream, false);
 
-  // 初始化PCA9554 IO扩展芯片
-  if (initPCA9554Handler()) {
-    Serial.println("PCA9554 初始化成功");
-  } else {
-    Serial.println("PCA9554 初始化失败，跳过IO扩展功能");
-  }
-
   Serial.println("========================================");
   Serial.println("PCM5102音箱已启动");
   Serial.printf("蓝牙设备名称: %s\n", BT_DEVICE_NAME);
@@ -195,6 +200,10 @@ void loop() {
   checkMultiClickTimeout();
 
   updateBattery();
+
+  // 更新QMI8658A传感器（摇晃检测）
+  updateQMI8658();
+
   // 更新音量控制
   // updateVolume();
 

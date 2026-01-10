@@ -23,13 +23,17 @@
 
 ### 核心特性
 
-✅ **蓝牙A2DP接收器** - 支持标准A2DP协议，兼容所有蓝牙音频设备  
-✅ **高品质音频输出** - 44.1kHz采样率，16位立体声，低延时传输  
-✅ **智能音量控制** - ADC电位器实时音量调节，21档量化控制  
-✅ **自动重连功能** - 配对信息持久化存储，断电重启自动重连  
-✅ **恢复出厂设置** - 按钮连按5次清除所有配对数据  
-✅ **RGB LED状态指示** - WS2812灯珠显示连接和播放状态  
-✅ **模块化架构** - 清晰的代码结构，易于维护和扩展  
+✅ **蓝牙A2DP接收器** - 支持标准A2DP协议，兼容所有蓝牙音频设备
+✅ **高品质音频输出** - 44.1kHz采样率，16位立体声，低延时传输
+✅ **智能音量控制** - ADC电位器实时音量调节，21档量化控制
+✅ **自动重连功能** - 配对信息持久化存储，断电重启自动重连
+✅ **恢复出厂设置** - 按钮连按5次清除所有配对数据
+✅ **RGB LED状态指示** - WS2812灯珠显示连接和播放状态
+✅ **TFT屏幕显示** - 实时显示歌曲信息、专辑封面、电池电量
+✅ **专辑封面管理** - 支持多张封面循环显示，摇晃切换
+✅ **六轴传感器** - QMI8658A摇晃检测，智能交互
+✅ **电池管理** - 实时电量显示，充电状态监控
+✅ **模块化架构** - 清晰的代码结构，易于维护和扩展
 
 ### 技术亮点
 
@@ -160,7 +164,11 @@ ESP32-A2DP-SPEAKER/
     ├── volume_control.h/cpp    # 音量控制模块
     ├── led_control.h/cpp       # LED控制模块
     ├── button_handler.h/cpp    # 按钮处理模块
-    └── config_manager.h/cpp    # 配置管理模块
+    ├── config_manager.h/cpp    # 配置管理模块
+    ├── pca9554_handler.h/cpp   # PCA9554 IO扩展模块
+    ├── album_cover_manager.h/cpp # 专辑封面管理模块
+    ├── qmi8658_handler.h/cpp   # QMI8658A六轴传感器模块
+    └── eeui.h/cpp              # TFT屏幕UI模块
 ```
 
 ### 依赖库
@@ -170,6 +178,9 @@ ESP32-A2DP-SPEAKER/
 | ESP32-A2DP | latest | 蓝牙A2DP协议支持 | 库管理器或手动安装 |
 | OneButton | latest | 按钮事件处理 | 库管理器 |
 | Adafruit_NeoPixel | latest | WS2812 LED控制 | 库管理器 |
+| TFT_eSPI | latest | TFT屏幕驱动 | 库管理器 |
+| QMI8658A | latest | 六轴传感器驱动 | 手动安装 |
+| Battery | latest | 电池电量管理 | 库管理器 |
 | Preferences | 内置 | 配置持久化存储 | ESP32内置 |
 
 ### 编译环境
@@ -462,6 +473,64 @@ bool loadBluetoothConfig() {
 void clearBluetoothConfig() {
   preferences.clear();
 }
+```
+
+### 9. QMI8658A六轴传感器模块 (qmi8658_handler.h/cpp)
+
+**功能**: 摇晃检测，切换专辑封面
+
+**硬件配置**:
+```cpp
+#define QMI8658_SDA_PIN 4
+#define QMI8658_SCL_PIN 15
+#define QMI8658_INT_PIN 36
+#define QMI8658_ADDR 0x6A
+```
+
+**传感器参数**:
+```cpp
+加速度量程: ±4g
+陀螺仪量程: ±1024°/s
+采样率: 500Hz
+低通滤波: lpf_13_37
+```
+
+**初始化流程**:
+```cpp
+void initQMI8658Handler() {
+  // 1. 检查I2C通讯
+  // 2. 配置传感器参数
+  // 3. 等待传感器稳定(1秒)
+  // 4. 验证数据有效性(最多重试5次)
+  // 5. 配置中断引脚
+}
+```
+
+**摇晃检测算法**:
+```cpp
+void updateQMI8658() {
+  // 每300ms检查一次
+  float ax = imu.getAccX();
+  float ay = imu.getAccY();
+  float az = imu.getAccZ();
+
+  // 计算合成加速度
+  float magnitude = sqrt(ax*ax + ay*ay + az*az);
+
+  // 检测摇晃(阈值2.5g)
+  if (magnitude > SHAKE_THRESHOLD) {
+    // 切换到下一个封面
+    nextAlbumCover();
+    // 冷却时间1秒
+    last_shake_time = millis();
+  }
+}
+```
+
+**关键参数**:
+```cpp
+#define SHAKE_THRESHOLD 2.5        // 摇晃阈值(g)
+#define SHAKE_COOLDOWN_MS 1000     // 冷却时间(毫秒)
 ```
 
 ---

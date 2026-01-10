@@ -1,15 +1,34 @@
 /**
+ * * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ * 
  * 按钮处理模块实现
  * 
  * 负责按钮事件检测和处理
  * 
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "button_handler.h"
 #include "bluetooth_manager.h"
-#include "userconfig.h"
+#include "../userconfig.h"
 #include "OneButton.h"
 
 // 按钮对象
@@ -33,29 +52,19 @@ static void handleButtonClick() {
 
   // 防止过快的连续点击（可能是音频干扰导致的误触发）
   if (lastValidClickTime > 0 && timeSinceLastValid < BUTTON_IDLE_TICKS) {
-    Serial.printf("⚠️ 按钮点击过快，忽略 (间隔: %lu ms < %d ms)\n",
-                  timeSinceLastValid, BUTTON_IDLE_TICKS);
     return;
   }
 
   // 检查多击超时
   if (currentTime - lastClickTime > MULTI_CLICK_TIMEOUT) {
-    if (buttonClickCount > 0) {
-      Serial.printf("多击超时，重置计数 (上次计数: %d)\n", buttonClickCount);
-    }
     buttonClickCount = 0;
   }
 
   buttonClickCount++;
   lastClickTime = currentTime;
-
-  Serial.printf("✓ 按钮点击次数: %d/%d (间隔: %lu ms)\n",
-                buttonClickCount, FACTORY_RESET_CLICKS, timeSinceLastValid);
-
   lastValidClickTime = currentTime;
 
   if (buttonClickCount == FACTORY_RESET_CLICKS) {
-    Serial.printf("🔄 检测到%d次点击，执行恢复出厂设置...\n", FACTORY_RESET_CLICKS);
     factoryReset();
     buttonClickCount = 0;
   }
@@ -69,15 +78,9 @@ void initButtonHandler() {
   bootButton.attachClick(handleButtonClick);
   bootButton.setClickTicks(BUTTON_CLICK_TICKS);
   bootButton.setPressTicks(BUTTON_PRESS_TICKS);
-  bootButton.setDebounceTicks(BUTTON_DEBOUNCE_TICKS);  // 100ms防抖
+  bootButton.setDebounceTicks(BUTTON_DEBOUNCE_TICKS);// 100ms防抖
   // 注意：空闲时间检查在handleButtonClick()中手动实现
-
-  Serial.println("按钮处理模块已初始化");
-  Serial.printf("  - 防抖时间: %d ms\n", BUTTON_DEBOUNCE_TICKS);
-  Serial.printf("  - 最小点击间隔: %d ms\n", BUTTON_IDLE_TICKS);
-  Serial.printf("  - 恢复出厂需要: %d 次点击\n", FACTORY_RESET_CLICKS);
 }
-
 /**
  * 更新按钮状态
  */
@@ -90,11 +93,6 @@ void updateButton() {
  */
 void checkMultiClickTimeout() {
   if (buttonClickCount > 0 && (millis() - lastClickTime > MULTI_CLICK_TIMEOUT)) {
-    if (buttonClickCount < FACTORY_RESET_CLICKS) {
-      Serial.printf("多击超时，点击次数: %d (需要%d次)\n", 
-                    buttonClickCount, FACTORY_RESET_CLICKS);
-    }
     buttonClickCount = 0;
   }
 }
-

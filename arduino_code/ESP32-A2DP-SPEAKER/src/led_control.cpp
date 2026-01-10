@@ -1,14 +1,33 @@
 /**
+ * * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ * 
  * LED控制模块实现
  * 
  * 负责WS2812 RGB LED状态指示
  * 
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "led_control.h"
-#include "userconfig.h"
+#include "../userconfig.h"
 #include <Adafruit_NeoPixel.h>
 
 // WS2812 RGB LED对象
@@ -25,10 +44,8 @@ static bool ledBlinkState = false;
  */
 void initLedControl() {
   rgbLed.begin();
-  // rgbLed.setBrightness(LED_B/GHTNESS);
-  rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));  // 启动时显示蓝色
+  rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));
   rgbLed.show();
-  Serial.println("WS2812 RGB LED已初始化");
 }
 
 /**
@@ -42,27 +59,18 @@ void updateRgbLed(bool connected, bool playing) {
     if (currentTime - lastLedUpdate >= LED_BLINK_INTERVAL) {
       lastLedUpdate = currentTime;
       ledBlinkState = !ledBlinkState;
-
-      if (ledBlinkState) {
-        rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));  // 蓝色
-        rgbLed.setBrightness(LED_BRIGHTNESS);
-      } else {
-        rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_OFF));    // 熄灭
-      }
-      rgbLed.show();
-    }
-  }
-  else if (connected && !playing) {
-    // 状态2: 已连接但未播放 - 蓝色长亮
-    if (currentTime - lastLedUpdate >= 100) {
-      lastLedUpdate = currentTime;
-      rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));    // 蓝色
+      rgbLed.setPixelColor(0, ledBlinkState ? rgbLed.Color(LED_COLOR_BLUE) : rgbLed.Color(LED_COLOR_OFF));
       rgbLed.setBrightness(LED_BRIGHTNESS);
       rgbLed.show();
     }
-  }
-  else if (connected && playing) {
-    // 状态3: 播放中 - 绿色呼吸灯效果
+  } else if (!playing) {
+    if (currentTime - lastLedUpdate >= 100) {
+      lastLedUpdate = currentTime;
+      rgbLed.setPixelColor(0, rgbLed.Color(LED_COLOR_BLUE));
+      rgbLed.setBrightness(LED_BRIGHTNESS);
+      rgbLed.show();
+    }
+  } else {
     if (currentTime - lastLedUpdate >= LED_BREATH_INTERVAL) {
       lastLedUpdate = currentTime;
 
@@ -72,15 +80,14 @@ void updateRgbLed(bool connected, bool playing) {
       // 反转方向
       if (breathBrightness >= LED_BRIGHTNESS) {
         breathBrightness = LED_BRIGHTNESS;
-        breathDirection = -1.5;
+        breathDirection = -1;
       } else if (breathBrightness <= 1) {
         breathBrightness = 1;
         breathDirection = 1;
       }
-      rgbLed.setPixelColor(0, rgbLed.Color(0, breathBrightness, 0));  // 绿色渐变
+      rgbLed.setPixelColor(0, rgbLed.Color(0, breathBrightness, 0));
       rgbLed.setBrightness(LED_BRIGHTNESS);
       rgbLed.show();
     }
   }
 }
-

@@ -1,11 +1,30 @@
 /**
  * ESP32 A2DP音箱硬件配置文件
  * 
+ *  * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ *
  * 此文件包含所有硬件相关的引脚定义和配置参数
  * 修改此文件可以适配不同的硬件平台
  * 
- * @author ESP-AI Team
- * @date 2024
  */
 
 #ifndef USERCONFIG_H
@@ -70,20 +89,22 @@
 #define I2C_SDA_PIN 4      // SDA 引脚
 #define I2C_SCL_PIN 15     // SCL 引脚
 #define I2C_FREQ 100000    // I2C 频率 (100kHz)
+#define PCA9554_ADDR 0x38
+#define INT_PIN 39
 
 // ==================== 屏幕配置 ====================
-#define SCREEN_WIDTH 240
+#define SCREEN_WIDTH 240 
 #define SCREEN_HEIGHT 320
 #define SCREEN_PAD_LEFT 8
 #define SCREEN_PAD_RIGHT 8
 
+// ==================== QMI8658 配置参数 ====================
 
-// PCA9554 配置
-#define PCA9554_ADDR 0x38  // 7位 I2C 地址
+#define QMI8658_SDA_PIN     I2C_SDA_PIN // 使用I2C总线
+#define QMI8658_SCL_PIN     I2C_SCL_PIN // 使用I2C总线
+#define QMI8658_INT_PIN     36    // QMI8658中断引脚
+#define QMI8658_ADDR        0x6A  // QMI8658 I2C地址
+#define SHAKE_THRESHOLD     2.5   // 触发摇一摇的加速度阈值 (g)
+#define SHAKE_COOLDOWN_MS   1000  // 摇一摇冷却时间 (毫秒)
 
-// 中断引脚配置
-#define INT_PIN 39          // INT 引脚 (GPIO2)
-
-
-#endif // USERCONFIG_H
-
+#endif

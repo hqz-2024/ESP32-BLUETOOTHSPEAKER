@@ -1,4 +1,25 @@
 /**
+ * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ * 
  * PCA9554 IO扩展芯片处理模块实现
  *
  * 按钮逻辑：
@@ -6,13 +27,11 @@
  * - IO2: 按下播放/暂停（100ms防抖）
  * - IO3: 长按>=1秒增加音量(持续按住每500ms增加)，短按(100ms-1秒)下一曲
  *
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "pca9554_handler.h"
 #include "bluetooth_manager.h"
-#include "userconfig.h"
+#include "../userconfig.h"
 #include <Wire.h>
 #include <PCA9554.h>
 
@@ -53,18 +72,8 @@ bool initPCA9554Handler() {
 
   // 配置 INT 引脚为输入
   pinMode(INT_PIN, INPUT_PULLUP);
-
-  // 初始化 PCA9554
-  if (!ioExpander.begin()) {
-    return false;
-  }
-
-  // 配置所有 IO 为输入
-  if (!ioExpander.portMode(0xFF)) {
-    return false;
-  }
-
-  Serial.println("PCA9554初始化成功");
+  if (!ioExpander.begin()) return false;
+  if (!ioExpander.portMode(0xFF)) return false;
   return true;
 }
 
@@ -73,18 +82,12 @@ bool initPCA9554Handler() {
  */
 void updatePCA9554() {
   unsigned long currentTime = millis();
-
-  // 定期轮询IO状态
-  if (currentTime - lastPollTime < POLL_INTERVAL) {
-    return;
-  }
+  if (currentTime - lastPollTime < POLL_INTERVAL) return;
   lastPollTime = currentTime;
 
   // 读取当前IO状态
   uint8_t ioState = 0;
-  if (!ioExpander.digitalReadPort(ioState)) {
-    return;
-  }
+  if (!ioExpander.digitalReadPort(ioState)) return;
 
   // 读取各按钮状态（LOW = 按下）
   bool io1CurrentlyPressed = !((ioState >> 1) & 1);
@@ -97,76 +100,56 @@ void updatePCA9554() {
     io1Pressed = true;
     io1PressStartTime = currentTime;
     io1VolumeActive = false;
-  }
-  else if (!io1CurrentlyPressed && io1Pressed) {
-    // 按钮释放
+  } else if (!io1CurrentlyPressed && io1Pressed) {
     unsigned long pressDuration = currentTime - io1PressStartTime;
-
     if (!io1VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
       // 短按: 100ms <= 持续时间 < 1000ms，执行上一曲
       previousTrack();
     }
     io1Pressed = false;
     io1VolumeActive = false;
-  }
-  else if (io1Pressed) {
-    // 按钮持续按下
+  } else if (io1Pressed) {
     unsigned long pressDuration = currentTime - io1PressStartTime;
-
     if (pressDuration >= LONG_PRESS_TIME) {
       if (!io1VolumeActive) {
         // 首次触发长按
         io1VolumeActive = true;
         io1LastVolumeTime = currentTime;
         decreaseVolume(VOLUME_STEP);
-      }
-      else if (currentTime - io1LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
-        // 持续按住，每500ms减少一次
+      } else if (currentTime - io1LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
         io1LastVolumeTime = currentTime;
         decreaseVolume(VOLUME_STEP);
       }
     }
   }
 
-  // ==================== 处理IO2 ====================
-  if (io2CurrentlyPressed) {
-    if (currentTime - io2LastPressTime >= DEBOUNCE_TIME) {
-      togglePlayPause();
-      io2LastPressTime = currentTime;
-    }
+  if (io2CurrentlyPressed && currentTime - io2LastPressTime >= DEBOUNCE_TIME) {
+    togglePlayPause();
+    io2LastPressTime = currentTime;
   }
 
   // ==================== 处理IO3 ====================
   if (io3CurrentlyPressed && !io3Pressed) {
-    // 按钮刚按下
     io3Pressed = true;
     io3PressStartTime = currentTime;
     io3VolumeActive = false;
-  }
-  else if (!io3CurrentlyPressed && io3Pressed) {
-    // 按钮释放
+  } else if (!io3CurrentlyPressed && io3Pressed) {
     unsigned long pressDuration = currentTime - io3PressStartTime;
-
     if (!io3VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
       // 短按: 100ms <= 持续时间 < 1000ms，执行下一曲
       nextTrack();
     }
     io3Pressed = false;
     io3VolumeActive = false;
-  }
-  else if (io3Pressed) {
-    // 按钮持续按下
+  } else if (io3Pressed) {
     unsigned long pressDuration = currentTime - io3PressStartTime;
-
     if (pressDuration >= LONG_PRESS_TIME) {
       if (!io3VolumeActive) {
         // 首次触发长按
         io3VolumeActive = true;
         io3LastVolumeTime = currentTime;
         increaseVolume(VOLUME_STEP);
-      }
-      else if (currentTime - io3LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
-        // 持续按住，每500ms增加一次
+      } else if (currentTime - io3LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
         io3LastVolumeTime = currentTime;
         increaseVolume(VOLUME_STEP);
       }

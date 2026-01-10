@@ -1,27 +1,39 @@
+/** Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ */
+
 #include "qmi8658_handler.h"
 #include "album_cover_manager.h"
 #include "bluetooth_manager.h"
 #include "eeui.h"
+#include "../userconfig.h"
 #include <QMI8658A.h>
 #include <Wire.h>
 
-#define QMI8658_SDA_PIN 4
-#define QMI8658_SCL_PIN 15
-#define QMI8658_INT_PIN 36
-#define QMI8658_ADDR 0x6A
-
-#define SHAKE_THRESHOLD 2.5
-#define SHAKE_COOLDOWN_MS 1000
-
 static QMI8658A imu;
 static bool imu_initialized = false;
-static volatile bool shake_detected = false;
 static unsigned long last_shake_time = 0;
 static EEUI* g_eeui = nullptr;
 
-void IRAM_ATTR qmi8658_isr() {
-    shake_detected = true;
-}
+static void IRAM_ATTR qmi8658_isr() {}
 
 void setQMI8658EEUIInstance(void* eeui) {
     g_eeui = (EEUI*)eeui;
@@ -128,16 +140,11 @@ void updateQMI8658() {
     }
 }
 
-bool isShakeDetected() {
-    return shake_detected;
-}
-
 void getAcceleration(float* x, float* y, float* z) {
     if (!imu_initialized) {
         *x = *y = *z = 0;
         return;
     }
-    
     *x = imu.getAccX();
     *y = imu.getAccY();
     *z = imu.getAccZ();
@@ -148,9 +155,7 @@ void getGyroscope(float* x, float* y, float* z) {
         *x = *y = *z = 0;
         return;
     }
-    
     *x = imu.getGyroX();
     *y = imu.getGyroY();
     *z = imu.getGyroZ();
 }
-

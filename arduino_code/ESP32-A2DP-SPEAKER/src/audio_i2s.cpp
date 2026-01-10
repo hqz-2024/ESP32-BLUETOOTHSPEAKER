@@ -1,15 +1,34 @@
 /**
+ *  * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ 
  * I2S音频处理模块实现
  *
  * 负责I2S硬件配置和音频数据处理
  * 音量控制使用A2DP AVRCP协议，不再使用软件音量控制
  *
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "audio_i2s.h"
-#include "userconfig.h"
+#include "../userconfig.h"
 
 /**
  * 配置PCM5102 MUTE引脚
@@ -19,9 +38,6 @@ void setupI2S() {
   // 配置MUTE引脚（可选）
   pinMode(I2S_MUTE_PIN, OUTPUT);
   digitalWrite(I2S_MUTE_PIN, HIGH); // PCM5102 MUTE引脚高电平取消静音
-
-  Serial.println("PCM5102 MUTE引脚配置完成");
-  Serial.printf("  - MUTE引脚: %d (HIGH=取消静音)\n", I2S_MUTE_PIN);
 }
 
 void setI2Smute(bool mute) {
@@ -40,4 +56,3 @@ void read_data_stream(const uint8_t *data, uint32_t length) {
     i2s_write(I2S_NUM_0, data, length, &bytes_written, portMAX_DELAY);
   }
 }
-

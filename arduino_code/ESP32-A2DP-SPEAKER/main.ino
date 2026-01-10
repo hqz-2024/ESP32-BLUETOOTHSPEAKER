@@ -45,19 +45,35 @@
  * - src/led_control.*     - LED控制模块
  * - src/button_handler.*  - 按钮处理模块
  * - src/config_manager.*  - 配置管理模块
+ * 
+ * /**
+ * Copyright (c) 2026 Cyberware Workshop
  *
- * @author ESP-AI Team
- * @date 2024
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
  */
 
 // 包含所有功能模块
 
 #include <Arduino.h>
+#include <Battery.h>
 #include "eeui.h"
-#include <WiFi.h>
-#include <map>
-#include <vector>
-
 #include "userconfig.h"
 #include "src/audio_i2s.h"
 #include "src/bluetooth_manager.h"
@@ -68,179 +84,94 @@
 #include "src/pca9554_handler.h"
 #include "src/album_cover_manager.h"
 #include "src/qmi8658_handler.h"
-#include <Battery.h>
 
-Battery battery(3000, 4200, BATTERY_PIN,12);
-
+Battery battery(3000, 4200, BATTERY_PIN, 12);
 TFT_eSPI tft = TFT_eSPI();
 EEUI eeui;
 
-
-// ==================== 回调函数 ====================
-/**
- * AVRC元数据更新回调
- * 当接收到新的歌曲信息时调用
- */
 void onMetadataUpdate(const char* title, const char* artist, const char* album) {
-  // 更新屏幕显示
   eeui.render_song_info(title, artist);
-
-
 }
 
-/**
- * 曲目切换回调
- * 当切换曲目时调用，同步更换封面图片
- */
 void onTrackChange(bool isNext) {
-  // 根据切换方向更换封面
-  const lv_img_dsc_t* newCover = nullptr;
-  if (isNext) {
-    newCover = nextAlbumCover();  // 切换到下一个封面
-  } else {
-    newCover = previousAlbumCover();  // 切换到上一个封面
-  }
-
-  // 更新屏幕显示的封面（保持当前播放状态）
-  bool currentPlaying = isAudioPlaying();
-  eeui.render_rotating_image(newCover, currentPlaying);
+  const lv_img_dsc_t* newCover = isNext ? nextAlbumCover() : previousAlbumCover();
+  eeui.render_rotating_image(newCover, isAudioPlaying());
 }
 
-/**
- * 音量变化回调
- * 当音量改变时调用，显示音量UI
- */
 void onVolumeChange(uint8_t volume) {
-  // 将音量从 0-127 转换为 0-1 的浮点数
-  float volumePercent = (float)volume / 127.0f;
-  eeui.render_volume(volumePercent);
+  eeui.render_volume((float)volume / 127.0f);
 }
-// ==================== 电量更新函数 ====================
+
 void updateBattery() {
-  // 添加电池信息更新
   static unsigned long lastBatteryUpdate = 0;
   if (millis() - lastBatteryUpdate > 3000) {
-
-    // 更新右上角电池图标（始终显示）
     eeui.render_battery(battery.level());
-
     lastBatteryUpdate = millis();
   }
 }
 
-// ==================== 初始化函数 ====================
 void setup() {
   Serial.begin(115200);
-  Serial.println("ESP32 蓝牙A2DP音箱启动中...");
-  Serial.println("版本：模块化架构，易于维护和扩展");
-  Serial.println("========================================");
-  
-  setI2Smute(true);       //先静音，避免开机爆音
+  setI2Smute(true);
 
-  // 初始化各个功能模块
-  // initVolumeControl();    // 初始化音量控制
-  initLedControl();       // 初始化LED控制
-  initButtonHandler();    // 初始化按钮处理
-  
-  // 初始化PCA9554 IO扩展芯片
-  if (initPCA9554Handler()) {
-    Serial.println("PCA9554 初始化成功");
-  } else {
-    Serial.println("PCA9554 初始化失败，跳过IO扩展功能");
-  }
-
-  // 初始化蓝牙A2DP（会自动配置I2S）
+  initLedControl();
+  initButtonHandler();
+  initPCA9554Handler();
   initBluetooth(BT_DEVICE_NAME);
 
-  setI2Smute(false);       //配置完成取消静音
+  setI2Smute(false);
 
-  // 初始化屏幕
   battery.begin(3300, 4.0, &asigmoidal);
   tft.begin();
-  tft.setRotation(4); // 设置屏幕方向 V4 开发板
-  eeui.begin(&tft, nullptr , 0 , SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
+  tft.setRotation(4);
+  eeui.begin(&tft, nullptr, 0, SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_PAD_LEFT, SCREEN_PAD_RIGHT);
 
-  // 初始化专辑封面管理器
   initAlbumCoverManager();
-
-  // 初始化QMI8658A六轴传感器
   initQMI8658Handler();
   setQMI8658EEUIInstance(&eeui);
 
-  // 设置回调函数
-  setMetadataCallback(onMetadataUpdate);      // 元数据更新回调
-  setTrackChangeCallback(onTrackChange);      // 曲目切换回调
-  setVolumeChangeCallback(onVolumeChange);    // 音量变化回调
+  setMetadataCallback(onMetadataUpdate);
+  setTrackChangeCallback(onTrackChange);
+  setVolumeChangeCallback(onVolumeChange);
 
-  // 初始化UI显示
   eeui.render_volume(1);
   eeui.recharge(battery.getischarge());
   eeui.render_battery(battery.level());
-  eeui.render_play_icon(false);      // 初始显示播放图标（暂停状态）
-  eeui.render_bluetooth_icon(false); // 初始显示蓝牙图标（未连接）
-  eeui.render_song_info("等待连接...", nullptr); // 初始提示信息
-
-  // 显示圆形旋转专辑封面（使用默认封面，初始不旋转）
+  eeui.render_play_icon(false);
+  eeui.render_bluetooth_icon(false);
+  eeui.render_song_info("等待连接...", nullptr);
   eeui.render_rotating_image(getDefaultAlbumCover(), false);
 
-
-  // 设置A2DP音频数据回调
   getA2DPSink()->set_stream_reader(read_data_stream, false);
-
-  Serial.println("========================================");
-  Serial.println("PCM5102音箱已启动");
-  Serial.printf("蓝牙设备名称: %s\n", BT_DEVICE_NAME);
-  Serial.println("等待蓝牙连接...");
 }
 
-// ==================== 主循环 ====================
 void loop() {
-  // 更新按钮状态
   updateButton();
   checkMultiClickTimeout();
-
   updateBattery();
-
-  // 更新QMI8658A传感器（摇晃检测）
   updateQMI8658();
-
-  // 更新音量控制
-  // updateVolume();
-
-  // 更新LED状态指示
   updateRgbLed(isBluetoothConnected(), isAudioPlaying());
-
-  // 更新PCA9554状态
   updatePCA9554();
 
-  // 更新屏幕UI状态
   static bool lastConnectedState = false;
   static bool lastPlayingState = false;
 
   bool currentConnected = isBluetoothConnected();
   bool currentPlaying = isAudioPlaying();
 
-  // 蓝牙连接状态变化
   if (currentConnected != lastConnectedState) {
     eeui.render_bluetooth_icon(currentConnected);
-    if (currentConnected) {
-      Serial.println("UI: 蓝牙已连接");
-    } else {
-      Serial.println("UI: 蓝牙已断开");
+    if (!currentConnected) {
       eeui.render_song_info("等待连接...", nullptr);
-
     }
     lastConnectedState = currentConnected;
   }
-  
-  // 播放状态变化
+
   if (currentPlaying != lastPlayingState) {
     eeui.render_play_icon(currentPlaying);
-    eeui.update_rotation_state(currentPlaying); // 更新旋转状态
+    eeui.update_rotation_state(currentPlaying);
     lastPlayingState = currentPlaying;
   }
 
   delay(1);
 }
-
-

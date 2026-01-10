@@ -1,15 +1,33 @@
 /**
+ * * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ * 
  * 蓝牙管理模块实现
  *
  * 负责蓝牙A2DP连接管理和状态回调
- *
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "bluetooth_manager.h"
 #include "config_manager.h"
-#include "userconfig.h"
+#include "../userconfig.h"
 
 // 蓝牙A2DP Sink对象
 static BluetoothA2DPSink a2dp_sink;
@@ -39,9 +57,7 @@ static void (*volume_change_callback)(uint8_t volume) = nullptr;
  * 初始化蓝牙A2DP接收器
  */
 void initBluetooth(const char* deviceName) {
-  Serial.println("初始化蓝牙A2DP...");
-
-  // 配置I2S引脚（在启动A2DP之前）
+    // 配置I2S引脚（在启动A2DP之前）
   static const i2s_config_t i2s_config = {
     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate = I2S_SAMPLE_RATE,
@@ -80,32 +96,22 @@ void initBluetooth(const char* deviceName) {
 
   // 启动A2DP蓝牙接收器（会自动初始化I2S）
   a2dp_sink.start(deviceName);
-
-  Serial.printf("蓝牙设备名称: %s\n", deviceName);
-  Serial.println("自动重连已启用");
-  Serial.printf("I2S配置: %dHz, %d-bit, BCK=%d, LRCK=%d, DIN=%d\n",
-                I2S_SAMPLE_RATE, 16, I2S_BCK_PIN, I2S_LRCK_PIN, I2S_DIN_PIN);
-  Serial.println("等待蓝牙连接...");
 }
-
 /**
  * 获取蓝牙A2DP Sink对象指针
  */
 BluetoothA2DPSink* getA2DPSink() {
   return &a2dp_sink;
 }
-
 /**
  * 蓝牙连接状态回调函数
  */
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
   isConnected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
-
   if (isConnected) {
     saveBluetoothConfig();
   }
 }
-
 /**
  * 音频播放状态回调函数
  */
@@ -166,37 +172,21 @@ void factoryReset() {
 
   // 获取已配对设备数量
   int bond_device_num = esp_bt_gap_get_bond_device_num();
-  Serial.printf("发现 %d 个已配对设备\n", bond_device_num);
-
   if (bond_device_num > 0) {
     // 分配内存存储设备地址列表
     esp_bd_addr_t *bond_device_list = (esp_bd_addr_t *)malloc(sizeof(esp_bd_addr_t) * bond_device_num);
     if (bond_device_list) {
-      // 获取已配对设备列表
-      esp_err_t ret = esp_bt_gap_get_bond_device_list(&bond_device_num, bond_device_list);
-      if (ret == ESP_OK) {
-        Serial.println("开始清除配对设备...");
-        // 逐个删除配对设备
+      if (esp_bt_gap_get_bond_device_list(&bond_device_num, bond_device_list) == ESP_OK) {
         for (int i = 0; i < bond_device_num; i++) {
-          esp_err_t remove_ret = esp_bt_gap_remove_bond_device(bond_device_list[i]);
-          Serial.printf("删除配对设备 %d: %s\n", i + 1, remove_ret == ESP_OK ? "成功" : "失败");
+          esp_bt_gap_remove_bond_device(bond_device_list[i]);
         }
-      } else {
-        Serial.printf("获取配对设备列表失败: %d\n", ret);
       }
       free(bond_device_list);
-    } else {
-      Serial.println("内存分配失败，无法获取配对设备列表");
     }
-  } else {
-    Serial.println("没有发现已配对设备");
   }
 
   // 清除Preferences配置
   clearBluetoothConfig();
-  Serial.println("已清除本地配置信息");
-
-  Serial.println("出厂设置恢复完成，重启设备...");
   delay(1000);
   ESP.restart();
 }
@@ -205,16 +195,13 @@ void factoryReset() {
  * 播放/暂停切换
  */
 void togglePlayPause() {
-  if (!isConnected) {
-    return;
-  }
-
+  if (!isConnected) return;
   if (isPlaying) {
     a2dp_sink.pause();
-    isPlaying = false;  // 立即更新本地状态，UI立即响应
+    isPlaying = false;
   } else {
     a2dp_sink.play();
-    isPlaying = true;   // 立即更新本地状态，UI立即响应
+    isPlaying = true;
   }
 }
 
@@ -224,7 +211,7 @@ void togglePlayPause() {
 void playMusic() {
   if (isConnected) {
     a2dp_sink.play();
-    isPlaying = true;  // 立即更新本地状态
+    isPlaying = true;
   }
 }
 
@@ -234,7 +221,7 @@ void playMusic() {
 void pauseMusic() {
   if (isConnected) {
     a2dp_sink.pause();
-    isPlaying = false;  // 立即更新本地状态
+    isPlaying = false;
   }
 }
 
@@ -247,7 +234,7 @@ void nextTrack() {
 
     // 触发曲目切换回调
     if (track_change_callback != nullptr) {
-      track_change_callback(true);  // true = 下一曲
+      track_change_callback(true);
     }
   }
 }
@@ -261,7 +248,7 @@ void previousTrack() {
 
     // 触发曲目切换回调
     if (track_change_callback != nullptr) {
-      track_change_callback(false);  // false = 上一曲
+      track_change_callback(false);
     }
   }
 }
@@ -279,13 +266,10 @@ void setVolume(uint8_t volume) {
     volume_change_callback(volume);
   }
 }
-
 /**
  * 获取当前音量
  */
-uint8_t getVolume() {
-  return currentVolume;
-}
+uint8_t getVolume() { return currentVolume; }
 
 /**
  * 增加音量
@@ -300,13 +284,7 @@ void increaseVolume(uint8_t step) {
  * 减少音量
  */
 void decreaseVolume(uint8_t step) {
-  uint8_t newVolume;
-  if (currentVolume < step) {
-    newVolume = 0;
-  } else {
-    newVolume = currentVolume - step;
-  }
-  setVolume(newVolume);
+  setVolume(currentVolume < step ? 0 : currentVolume - step);
 }
 
 
@@ -330,24 +308,15 @@ void setTrackChangeCallback(void (*callback)(bool isNext)) {
 void setVolumeChangeCallback(void (*callback)(uint8_t volume)) {
   volume_change_callback = callback;
 }
-
 /**
  * 获取当前歌曲标题
  */
-String getCurrentTitle() {
-  return currentTitle;
-}
-
+String getCurrentTitle() { return currentTitle; }
 /**
  * 获取当前艺术家
  */
-String getCurrentArtist() {
-  return currentArtist;
-}
-
+String getCurrentArtist() { return currentArtist; }
 /**
  * 获取当前专辑
  */
-String getCurrentAlbum() {
-  return currentAlbum;
-}
+String getCurrentAlbum() { return currentAlbum; }

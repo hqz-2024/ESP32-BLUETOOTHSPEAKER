@@ -1,32 +1,44 @@
 /**
+ * * Copyright (c) 2026 Cyberware Workshop
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Commercial use of this software requires prior written authorization from the Licensor.
+ * 请注意：将 Cyberware Workshop 代码用于商业用途需要事先获得许可方的授权。
+ * 删除与修改版权属于侵权行为，请尊重作者版权，避免产生不必要的纠纷。
+ *
+ * @author Cyberware Workshop Team
+ * @date 2026
+ * 
  * 音量控制模块实现
  *
  * 音量控制使用A2DP AVRCP协议
  * 此模块提供向后兼容的接口
  *
- * @author ESP-AI Team
- * @date 2024
  */
 
 #include "volume_control.h"
 #include "bluetooth_manager.h"
-
 /**
  * 初始化音量控制模块
  * (当前使用A2DP音量控制，无需特殊初始化)
  */
-void initVolumeControl() {
-  Serial.println("音量控制模块已初始化 (使用A2DP AVRCP协议)");
-}
-
+void initVolumeControl() {}
 /**
  * 更新音量
  * (当前使用A2DP音量控制，由蓝牙模块自动处理)
  */
-void updateVolume() {
-  // A2DP音量控制由蓝牙模块处理，此函数保留以兼容旧代码
-}
-
+void updateVolume() {}
 /**
  * 获取当前音量值
  * 转换A2DP音量(0-127)为百分比(0.0-1.0)
@@ -34,4 +46,3 @@ void updateVolume() {
 float getCurrentVolume() {
   return (float)getVolume() / 127.0f;
 }
-

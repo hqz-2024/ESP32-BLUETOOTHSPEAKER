@@ -39,10 +39,11 @@ static bool isPlaying = false;
 // 当前音量值 (0-127, A2DP标准范围)
 static uint8_t currentVolume = 100;  // 默认音量约78%
 
-// AVRC 元数据信息
-static String currentTitle = "";
-static String currentArtist = "";
-static String currentAlbum = "";
+// AVRC 元数据信息 - 使用静态缓冲区避免内存碎片
+#define METADATA_BUF_SIZE 128
+static char currentTitle[METADATA_BUF_SIZE] = "";
+static char currentArtist[METADATA_BUF_SIZE] = "";
+static char currentAlbum[METADATA_BUF_SIZE] = "";
 
 // 元数据更新回调函数指针
 static void (*metadata_callback)(const char* title, const char* artist, const char* album) = nullptr;
@@ -124,26 +125,25 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
  * AVRC元数据回调函数
  */
 void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
-  // 根据属性ID更新对应的元数据
-  // ESP_AVRC_MD_ATTR_TITLE = 0x01
-  // ESP_AVRC_MD_ATTR_ARTIST = 0x02
-  // ESP_AVRC_MD_ATTR_ALBUM = 0x03
+  if (text == nullptr) return;
 
   switch (id) {
-    case 0x01: // 标题
-      currentTitle = String((char*)text);
+    case 0x01:
+      strncpy(currentTitle, (const char*)text, METADATA_BUF_SIZE - 1);
+      currentTitle[METADATA_BUF_SIZE - 1] = '\0';
       break;
-    case 0x02: // 艺术家
-      currentArtist = String((char*)text);
+    case 0x02:
+      strncpy(currentArtist, (const char*)text, METADATA_BUF_SIZE - 1);
+      currentArtist[METADATA_BUF_SIZE - 1] = '\0';
       break;
-    case 0x03: // 专辑
-      currentAlbum = String((char*)text);
+    case 0x03:
+      strncpy(currentAlbum, (const char*)text, METADATA_BUF_SIZE - 1);
+      currentAlbum[METADATA_BUF_SIZE - 1] = '\0';
       break;
   }
 
-  // 如果设置了回调函数，则调用
   if (metadata_callback != nullptr) {
-    metadata_callback(currentTitle.c_str(), currentArtist.c_str(), currentAlbum.c_str());
+    metadata_callback(currentTitle, currentArtist, currentAlbum);
   }
 }
 
@@ -311,12 +311,12 @@ void setVolumeChangeCallback(void (*callback)(uint8_t volume)) {
 /**
  * 获取当前歌曲标题
  */
-String getCurrentTitle() { return currentTitle; }
+const char* getCurrentTitle() { return currentTitle; }
 /**
  * 获取当前艺术家
  */
-String getCurrentArtist() { return currentArtist; }
+const char* getCurrentArtist() { return currentArtist; }
 /**
  * 获取当前专辑
  */
-String getCurrentAlbum() { return currentAlbum; }
+const char* getCurrentAlbum() { return currentAlbum; }

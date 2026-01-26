@@ -160,20 +160,20 @@ void setVolumeChangeCallback(void (*callback)(uint8_t volume));
  *
  * @return 歌曲标题字符串
  */
-String getCurrentTitle();
+const char* getCurrentTitle();
 
 /**
  * 获取当前艺术家
  *
  * @return 艺术家名称字符串
  */
-String getCurrentArtist();
+const char* getCurrentArtist();
 
 /**
  * 获取当前专辑
  *
  * @return 专辑名称字符串
  */
-String getCurrentAlbum();
+const char* getCurrentAlbum();
 
 #endif // BLUETOOTH_MANAGER_H

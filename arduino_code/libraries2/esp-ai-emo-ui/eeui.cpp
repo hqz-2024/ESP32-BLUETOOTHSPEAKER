@@ -1800,9 +1800,12 @@ void EEUI::render_rotating_image_todo(const lv_img_dsc_t *image, bool is_playing
     if (rotating_container != NULL && lv_obj_is_valid(rotating_container))
     {
         lv_anim_del(rotating_image, nullptr);
-        lv_obj_del(rotating_container);
+        lv_obj_t *to_del = rotating_container;
         rotating_container = nullptr;
         rotating_image = nullptr;
+        is_rotation_active = false;
+        lv_obj_del_delayed(to_del, 50);
+        vTaskDelay(pdMS_TO_TICKS(60));
     }
 
     // ========== 第1步：创建圆形容器（负责裁剪） ==========
@@ -1944,10 +1947,11 @@ void EEUI::hide_rotating_image_todo()
     if (rotating_container != NULL && lv_obj_is_valid(rotating_container))
     {
         lv_anim_del(rotating_image, nullptr);
-        lv_obj_del(rotating_container);  // 删除容器会自动删除内部的图片
+        lv_obj_t *to_del = rotating_container;
         rotating_container = nullptr;
         rotating_image = nullptr;
         is_rotation_active = false;
+        lv_obj_del_delayed(to_del, 50);
     }
 }
 

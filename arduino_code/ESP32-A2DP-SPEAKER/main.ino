@@ -84,6 +84,7 @@
 #include "src/pca9554_handler.h"
 #include "src/album_cover_manager.h"
 #include "src/qmi8658_handler.h"
+#include "src/backlight_control.h"
 
 Battery battery(3000, 4200, BATTERY_PIN, 12);
 TFT_eSPI tft = TFT_eSPI();
@@ -113,6 +114,7 @@ void updateBattery() {
 void setup() {
   Serial.begin(115200);
   setI2Smute(true);
+  initBacklight();
 
   initLedControl();
   initButtonHandler();
@@ -143,6 +145,7 @@ void setup() {
   eeui.render_rotating_image(getDefaultAlbumCover(), false);
 
   getA2DPSink()->set_stream_reader(read_data_stream, false);
+  setBacklightOn();
 }
 
 void loop() {
@@ -151,7 +154,8 @@ void loop() {
   updateBattery();
   updateQMI8658();
   updateRgbLed(isBluetoothConnected(), isAudioPlaying());
-  updatePCA9554();
+  if (updatePCA9554()) resetBacklightTimer();
+  updateBacklight();
 
   static bool lastConnectedState = false;
   static bool lastPlayingState = false;

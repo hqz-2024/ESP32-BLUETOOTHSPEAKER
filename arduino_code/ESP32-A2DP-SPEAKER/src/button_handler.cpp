@@ -28,6 +28,7 @@
 
 #include "button_handler.h"
 #include "bluetooth_manager.h"
+#include "backlight_control.h"
 #include "../userconfig.h"
 #include "OneButton.h"
 
@@ -63,6 +64,7 @@ static void handleButtonClick() {
   buttonClickCount++;
   lastClickTime = currentTime;
   lastValidClickTime = currentTime;
+  resetBacklightTimer();
 
   if (buttonClickCount == FACTORY_RESET_CLICKS) {
     factoryReset();

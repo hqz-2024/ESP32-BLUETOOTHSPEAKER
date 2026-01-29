@@ -242,8 +242,8 @@
 #define TFT_DC       17   //  Data Command control pin
 // #define TFT_RST      -1   // Reset pin (could connect to NodeMCU RST, see next line)
 #define TFT_CS       5   // Chip select control pin D8
-#define TFT_BL       13   // LED back-light
-#define TFT_BACKLIGHT_ON LOW
+// #define TFT_BL       13   // LED back-light
+// #define TFT_BACKLIGHT_ON LOW
 
 // // ============= 马壮壮小智  =============
 // #define TFT_MOSI     47    // LCD_SDA   Automatically assigned with ESP8266 if not defined

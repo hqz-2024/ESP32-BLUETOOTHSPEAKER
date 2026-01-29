@@ -62,6 +62,10 @@
 TFT_eSPI tft = TFT_eSPI();
 EEUI eeui;
 
+#define BACKLIGHT_PIN 13
+unsigned long lastBacklightToggle = 0;
+bool backlightState = true;
+
 /**
  * 定义一个情感与图片 URL 的映射数组
  */
@@ -97,6 +101,9 @@ EEUI eeui;
 void setup()
 {
   Serial.begin(115200);
+
+  pinMode(BACKLIGHT_PIN, OUTPUT);
+  digitalWrite(BACKLIGHT_PIN, HIGH);
 
   delay(2000);
   // 初始化 屏幕
@@ -268,6 +275,14 @@ void loop()
     // lv_mem_monitor(&mon);
     // printf("LVGL memory: total_size: %d, free_size: %d, max_used: %d\n",
     //        (int)mon.total_size, (int)mon.free_size, (int)mon.max_used);
+  }
+
+  if (millis() - lastBacklightToggle >= 10000)
+  {
+    lastBacklightToggle = millis();
+    backlightState = !backlightState;
+    digitalWrite(BACKLIGHT_PIN, backlightState ? HIGH : LOW);
+    Serial.printf("Backlight %s\n", backlightState ? "OFF" : "ON");
   }
 
   eeui.set_bottom_scrolling_text("人，你知道吗？");

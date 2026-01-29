@@ -42,8 +42,9 @@ bool initPCA9554Handler();
 /**
  * 更新PCA9554状态
  * 在主循环中调用，检查IO变化并执行相应操作
+ * @return true=有按钮操作, false=无操作
  */
-void updatePCA9554();
+bool updatePCA9554();
 
 #endif // PCA9554_HANDLER_H
 

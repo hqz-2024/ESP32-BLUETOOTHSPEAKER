@@ -93,10 +93,12 @@
 #define INT_PIN 39
 
 // ==================== 屏幕配置 ====================
-#define SCREEN_WIDTH 240 
+#define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 320
 #define SCREEN_PAD_LEFT 8
 #define SCREEN_PAD_RIGHT 8
+#define SCREEN_BL_PIN 13    // 屏幕背光引脚
+#define SCREEN_TIMEOUT_MS 30000  // 屏幕自动关闭时间 (毫秒)
 
 // ==================== QMI8658 配置参数 ====================
 

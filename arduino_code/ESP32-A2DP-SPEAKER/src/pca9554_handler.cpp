@@ -79,15 +79,18 @@ bool initPCA9554Handler() {
 
 /**
  * 更新PCA9554状态 - 使用轮询方式
+ * @return true=有按钮操作, false=无操作
  */
-void updatePCA9554() {
+bool updatePCA9554() {
   unsigned long currentTime = millis();
-  if (currentTime - lastPollTime < POLL_INTERVAL) return;
+  if (currentTime - lastPollTime < POLL_INTERVAL) return false;
   lastPollTime = currentTime;
 
   // 读取当前IO状态
   uint8_t ioState = 0;
-  if (!ioExpander.digitalReadPort(ioState)) return;
+  if (!ioExpander.digitalReadPort(ioState)) return false;
+
+  bool hasAction = false;
 
   // 读取各按钮状态（LOW = 按下）
   bool io1CurrentlyPressed = !((ioState >> 1) & 1);
@@ -96,29 +99,30 @@ void updatePCA9554() {
 
   // ==================== 处理IO1 ====================
   if (io1CurrentlyPressed && !io1Pressed) {
-    // 按钮刚按下
     io1Pressed = true;
     io1PressStartTime = currentTime;
     io1VolumeActive = false;
+    hasAction = true;
   } else if (!io1CurrentlyPressed && io1Pressed) {
     unsigned long pressDuration = currentTime - io1PressStartTime;
     if (!io1VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
-      // 短按: 100ms <= 持续时间 < 1000ms，执行上一曲
       previousTrack();
     }
     io1Pressed = false;
     io1VolumeActive = false;
+    hasAction = true;
   } else if (io1Pressed) {
     unsigned long pressDuration = currentTime - io1PressStartTime;
     if (pressDuration >= LONG_PRESS_TIME) {
       if (!io1VolumeActive) {
-        // 首次触发长按
         io1VolumeActive = true;
         io1LastVolumeTime = currentTime;
         decreaseVolume(VOLUME_STEP);
+        hasAction = true;
       } else if (currentTime - io1LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
         io1LastVolumeTime = currentTime;
         decreaseVolume(VOLUME_STEP);
+        hasAction = true;
       }
     }
   }
@@ -126,6 +130,7 @@ void updatePCA9554() {
   if (io2CurrentlyPressed && currentTime - io2LastPressTime >= DEBOUNCE_TIME) {
     togglePlayPause();
     io2LastPressTime = currentTime;
+    hasAction = true;
   }
 
   // ==================== 处理IO3 ====================
@@ -133,26 +138,29 @@ void updatePCA9554() {
     io3Pressed = true;
     io3PressStartTime = currentTime;
     io3VolumeActive = false;
+    hasAction = true;
   } else if (!io3CurrentlyPressed && io3Pressed) {
     unsigned long pressDuration = currentTime - io3PressStartTime;
     if (!io3VolumeActive && pressDuration >= DEBOUNCE_TIME && pressDuration < LONG_PRESS_TIME) {
-      // 短按: 100ms <= 持续时间 < 1000ms，执行下一曲
       nextTrack();
     }
     io3Pressed = false;
     io3VolumeActive = false;
+    hasAction = true;
   } else if (io3Pressed) {
     unsigned long pressDuration = currentTime - io3PressStartTime;
     if (pressDuration >= LONG_PRESS_TIME) {
       if (!io3VolumeActive) {
-        // 首次触发长按
         io3VolumeActive = true;
         io3LastVolumeTime = currentTime;
         increaseVolume(VOLUME_STEP);
+        hasAction = true;
       } else if (currentTime - io3LastVolumeTime >= VOLUME_REPEAT_INTERVAL) {
         io3LastVolumeTime = currentTime;
         increaseVolume(VOLUME_STEP);
+        hasAction = true;
       }
     }
   }
+  return hasAction;
 }

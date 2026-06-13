@@ -8,7 +8,6 @@ PCA9554::PCA9554(byte SlaveAddress)
 
 bool PCA9554::begin()
 {
-	Wire.begin();
 	_initialized = isConnected();
 	return _initialized;
 }

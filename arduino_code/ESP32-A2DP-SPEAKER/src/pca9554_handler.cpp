@@ -67,9 +67,6 @@ static unsigned long lastPollTime = 0;
  * 初始化PCA9554模块
  */
 bool initPCA9554Handler() {
-  // 初始化 I2C
-  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, I2C_FREQ);
-
   // 配置 INT 引脚为输入
   pinMode(INT_PIN, INPUT_PULLUP);
   if (!ioExpander.begin()) return false;

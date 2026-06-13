@@ -69,8 +69,23 @@ void avrc_metadata_callback(uint8_t data1, const uint8_t *data2);
 bool isBluetoothConnected();
 
 /**
+ * 获取蓝牙连接状态与UI所需状态快照
+ *
+ * @param connected 是否已连接
+ * @param playing 是否播放中
+ * @param volume 当前音量
+ * @param title 标题输出缓冲区
+ * @param titleSize 标题缓冲区大小
+ * @param artist 艺术家输出缓冲区
+ * @param artistSize 艺术家缓冲区大小
+ * @param album 专辑输出缓冲区
+ * @param albumSize 专辑缓冲区大小
+ */
+void getBluetoothUiSnapshot(bool *connected, bool *playing, uint8_t *volume, char *title, size_t titleSize, char *artist, size_t artistSize, char *album, size_t albumSize);
+
+/**
  * 获取音频播放状态
- * 
+ *
  * @return true=播放中, false=暂停
  */
 bool isAudioPlaying();

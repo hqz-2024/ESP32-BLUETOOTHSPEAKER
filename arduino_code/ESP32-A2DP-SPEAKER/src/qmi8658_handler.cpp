@@ -28,6 +28,8 @@
 #include <QMI8658A.h>
 #include <Wire.h>
 
+extern TwoWire Wire;
+
 static QMI8658A imu;
 static bool imu_initialized = false;
 static unsigned long last_shake_time = 0;

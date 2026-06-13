@@ -22,7 +22,6 @@ QMI8658A::QMI8658A()
  */
 void QMI8658A::begin(byte addr)
 {
-    Wire.begin();
     this->device_addr = addr;
     setState(sensor_running);
     setAccScale(this->acc_scale);

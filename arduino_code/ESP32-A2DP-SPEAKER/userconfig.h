@@ -98,7 +98,7 @@
 #define SCREEN_PAD_LEFT 8
 #define SCREEN_PAD_RIGHT 8
 #define SCREEN_BL_PIN 13    // 屏幕背光引脚
-#define SCREEN_TIMEOUT_MS 30000  // 屏幕自动关闭时间 (毫秒)
+#define SCREEN_TIMEOUT_MS 120 * 1000  // 屏幕自动关闭时间 (毫秒)
 
 // ==================== QMI8658 配置参数 ====================
 
@@ -106,7 +106,7 @@
 #define QMI8658_SCL_PIN     I2C_SCL_PIN // 使用I2C总线
 #define QMI8658_INT_PIN     36    // QMI8658中断引脚
 #define QMI8658_ADDR        0x6A  // QMI8658 I2C地址
-#define SHAKE_THRESHOLD     2.5   // 触发摇一摇的加速度阈值 (g)
+#define SHAKE_THRESHOLD     1.5   // 触发摇一摇的加速度阈值 (g)
 #define SHAKE_COOLDOWN_MS   1000  // 摇一摇冷却时间 (毫秒)
 
 #endif

@@ -19,7 +19,7 @@
  *
  * @author Cyberware Workshop Team
  * @date 2026
- * 
+ *
  * 蓝牙管理模块实现
  *
  * 负责蓝牙A2DP连接管理和状态回调
@@ -31,13 +31,14 @@
 
 // 蓝牙A2DP Sink对象
 static BluetoothA2DPSink a2dp_sink;
+static portMUX_TYPE bluetoothStateMux = portMUX_INITIALIZER_UNLOCKED;
 
 // 连接和播放状态
-static bool isConnected = false;
-static bool isPlaying = false;
+static volatile bool isConnected = false;
+static volatile bool isPlaying = false;
 
 // 当前音量值 (0-127, A2DP标准范围)
-static uint8_t currentVolume = 100;  // 默认音量约78%
+static volatile uint8_t currentVolume = 100;
 
 // AVRC 元数据信息 - 使用静态缓冲区避免内存碎片
 #define METADATA_BUF_SIZE 128
@@ -55,10 +56,42 @@ static void (*track_change_callback)(bool isNext) = nullptr;
 static void (*volume_change_callback)(uint8_t volume) = nullptr;
 
 /**
+ * 复制元数据到固定缓冲区
+ */
+static void copyMetadata(char *dest, const uint8_t *src, size_t size) {
+  if (size == 0) return;
+  if (src == nullptr) {
+    dest[0] = '\0';
+    return;
+  }
+  strncpy(dest, (const char*)src, size - 1);
+  dest[size - 1] = '\0';
+}
+
+/**
+ * 线程安全读取元数据
+ */
+static void getMetadataSnapshot(char *title, size_t titleSize, char *artist, size_t artistSize, char *album, size_t albumSize) {
+  portENTER_CRITICAL(&bluetoothStateMux);
+  if (title && titleSize > 0) {
+    strncpy(title, currentTitle, titleSize - 1);
+    title[titleSize - 1] = '\0';
+  }
+  if (artist && artistSize > 0) {
+    strncpy(artist, currentArtist, artistSize - 1);
+    artist[artistSize - 1] = '\0';
+  }
+  if (album && albumSize > 0) {
+    strncpy(album, currentAlbum, albumSize - 1);
+    album[albumSize - 1] = '\0';
+  }
+  portEXIT_CRITICAL(&bluetoothStateMux);
+}
+
+/**
  * 初始化蓝牙A2DP接收器
  */
 void initBluetooth(const char* deviceName) {
-    // 配置I2S引脚（在启动A2DP之前）
   static const i2s_config_t i2s_config = {
     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate = I2S_SAMPLE_RATE,
@@ -81,43 +114,38 @@ void initBluetooth(const char* deviceName) {
     .data_in_num = I2S_PIN_NO_CHANGE
   };
 
-  // 设置I2S配置
   a2dp_sink.set_i2s_config(i2s_config);
   a2dp_sink.set_pin_config(pin_config);
-
-  // 启用自动重连功能
   a2dp_sink.set_auto_reconnect(BT_AUTO_RECONNECT);
-
-  // 设置连接状态回调
   a2dp_sink.set_on_connection_state_changed(connection_state_changed);
   a2dp_sink.set_on_audio_state_changed(audio_state_changed);
-
-  // 设置AVRC元数据回调
   a2dp_sink.set_avrc_metadata_callback(avrc_metadata_callback);
-
-  // 启动A2DP蓝牙接收器（会自动初始化I2S）
   a2dp_sink.start(deviceName);
 }
+
 /**
  * 获取蓝牙A2DP Sink对象指针
  */
 BluetoothA2DPSink* getA2DPSink() {
   return &a2dp_sink;
 }
+
 /**
  * 蓝牙连接状态回调函数
  */
 void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
+  (void)ptr;
   isConnected = (state == ESP_A2D_CONNECTION_STATE_CONNECTED);
   if (isConnected) {
     saveBluetoothConfig();
   }
 }
+
 /**
  * 音频播放状态回调函数
  */
 void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
-  // 更新播放状态
+  (void)ptr;
   isPlaying = (state == ESP_A2D_AUDIO_STATE_STARTED);
 }
 
@@ -127,23 +155,35 @@ void audio_state_changed(esp_a2d_audio_state_t state, void *ptr) {
 void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
   if (text == nullptr) return;
 
+  char title[METADATA_BUF_SIZE] = "";
+  char artist[METADATA_BUF_SIZE] = "";
+  char album[METADATA_BUF_SIZE] = "";
+
+  portENTER_CRITICAL(&bluetoothStateMux);
   switch (id) {
     case 0x01:
-      strncpy(currentTitle, (const char*)text, METADATA_BUF_SIZE - 1);
-      currentTitle[METADATA_BUF_SIZE - 1] = '\0';
+      copyMetadata(currentTitle, text, sizeof(currentTitle));
       break;
     case 0x02:
-      strncpy(currentArtist, (const char*)text, METADATA_BUF_SIZE - 1);
-      currentArtist[METADATA_BUF_SIZE - 1] = '\0';
+      copyMetadata(currentArtist, text, sizeof(currentArtist));
       break;
     case 0x03:
-      strncpy(currentAlbum, (const char*)text, METADATA_BUF_SIZE - 1);
-      currentAlbum[METADATA_BUF_SIZE - 1] = '\0';
+    case 0x04:
+      copyMetadata(currentAlbum, text, sizeof(currentAlbum));
+      break;
+    default:
       break;
   }
+  strncpy(title, currentTitle, sizeof(title) - 1);
+  title[sizeof(title) - 1] = '\0';
+  strncpy(artist, currentArtist, sizeof(artist) - 1);
+  artist[sizeof(artist) - 1] = '\0';
+  strncpy(album, currentAlbum, sizeof(album) - 1);
+  album[sizeof(album) - 1] = '\0';
+  portEXIT_CRITICAL(&bluetoothStateMux);
 
   if (metadata_callback != nullptr) {
-    metadata_callback(currentTitle, currentArtist, currentAlbum);
+    metadata_callback(title, artist, album);
   }
 }
 
@@ -152,6 +192,29 @@ void avrc_metadata_callback(uint8_t id, const uint8_t *text) {
  */
 bool isBluetoothConnected() {
   return isConnected;
+}
+
+/**
+ * 获取蓝牙连接状态与元数据快照
+ */
+void getBluetoothUiSnapshot(bool *connected, bool *playing, uint8_t *volume, char *title, size_t titleSize, char *artist, size_t artistSize, char *album, size_t albumSize) {
+  portENTER_CRITICAL(&bluetoothStateMux);
+  if (connected) *connected = isConnected;
+  if (playing) *playing = isPlaying;
+  if (volume) *volume = currentVolume;
+  if (title && titleSize > 0) {
+    strncpy(title, currentTitle, titleSize - 1);
+    title[titleSize - 1] = '\0';
+  }
+  if (artist && artistSize > 0) {
+    strncpy(artist, currentArtist, artistSize - 1);
+    artist[artistSize - 1] = '\0';
+  }
+  if (album && albumSize > 0) {
+    strncpy(album, currentAlbum, albumSize - 1);
+    album[albumSize - 1] = '\0';
+  }
+  portEXIT_CRITICAL(&bluetoothStateMux);
 }
 
 /**
@@ -166,14 +229,10 @@ bool isAudioPlaying() {
  */
 void factoryReset() {
   Serial.println("开始恢复出厂设置...");
-
-  // 停止A2DP服务
   a2dp_sink.end();
 
-  // 获取已配对设备数量
   int bond_device_num = esp_bt_gap_get_bond_device_num();
   if (bond_device_num > 0) {
-    // 分配内存存储设备地址列表
     esp_bd_addr_t *bond_device_list = (esp_bd_addr_t *)malloc(sizeof(esp_bd_addr_t) * bond_device_num);
     if (bond_device_list) {
       if (esp_bt_gap_get_bond_device_list(&bond_device_num, bond_device_list) == ESP_OK) {
@@ -185,7 +244,6 @@ void factoryReset() {
     }
   }
 
-  // 清除Preferences配置
   clearBluetoothConfig();
   delay(1000);
   ESP.restart();
@@ -231,8 +289,6 @@ void pauseMusic() {
 void nextTrack() {
   if (isConnected) {
     a2dp_sink.next();
-
-    // 触发曲目切换回调
     if (track_change_callback != nullptr) {
       track_change_callback(true);
     }
@@ -245,8 +301,6 @@ void nextTrack() {
 void previousTrack() {
   if (isConnected) {
     a2dp_sink.previous();
-
-    // 触发曲目切换回调
     if (track_change_callback != nullptr) {
       track_change_callback(false);
     }
@@ -260,12 +314,11 @@ void setVolume(uint8_t volume) {
   if (volume > 127) volume = 127;
   currentVolume = volume;
   a2dp_sink.set_volume(volume);
-
-  // 触发音量变化回调
   if (volume_change_callback != nullptr) {
     volume_change_callback(volume);
   }
 }
+
 /**
  * 获取当前音量
  */
@@ -287,7 +340,6 @@ void decreaseVolume(uint8_t step) {
   setVolume(currentVolume < step ? 0 : currentVolume - step);
 }
 
-
 /**
  * 设置元数据更新回调函数
  */
@@ -308,15 +360,30 @@ void setTrackChangeCallback(void (*callback)(bool isNext)) {
 void setVolumeChangeCallback(void (*callback)(uint8_t volume)) {
   volume_change_callback = callback;
 }
+
 /**
  * 获取当前歌曲标题
  */
-const char* getCurrentTitle() { return currentTitle; }
+const char* getCurrentTitle() {
+  static char title[METADATA_BUF_SIZE];
+  getMetadataSnapshot(title, sizeof(title), nullptr, 0, nullptr, 0);
+  return title;
+}
+
 /**
  * 获取当前艺术家
  */
-const char* getCurrentArtist() { return currentArtist; }
+const char* getCurrentArtist() {
+  static char artist[METADATA_BUF_SIZE];
+  getMetadataSnapshot(nullptr, 0, artist, sizeof(artist), nullptr, 0);
+  return artist;
+}
+
 /**
  * 获取当前专辑
  */
-const char* getCurrentAlbum() { return currentAlbum; }
+const char* getCurrentAlbum() {
+  static char album[METADATA_BUF_SIZE];
+  getMetadataSnapshot(nullptr, 0, nullptr, 0, album, sizeof(album));
+  return album;
+}
